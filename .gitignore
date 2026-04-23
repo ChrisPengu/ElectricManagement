@@ -1,0 +1,32 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Local environment/config
+.env
+.env.*
+!.env.example
+
+# Local databases and runtime data
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+*.db-journal
+*.sqlite-journal
+*.sqlite3-journal
+
+# IDE / OS files
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
