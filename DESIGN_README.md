@@ -130,29 +130,33 @@ Các entity hiện có:
 
 ### `UserAccount`
 
-Mô tả người dùng hệ thống.
+Mô tả tài khoản quản trị hệ thống.
 
 Thuộc tính chính:
 
-- `id`
-- `username`
-- `password`
-- `role`
-- `display_name`
-- `is_active`
+| Thuộc tính | Mô tả |
+| --- | --- |
+| `id` | Khóa chính định danh duy nhất của tài khoản trong hệ thống. |
+| `username` | Tên đăng nhập dùng để xác thực người dùng. |
+| `password` | Mật khẩu của tài khoản, dùng trong quá trình đăng nhập. |
+| `role` | Vai trò của tài khoản; phiên bản hiện tại chỉ cho phép `Admin` đăng nhập. |
+| `display_name` | Tên hiển thị của người dùng trên giao diện. |
+| `is_active` | Trạng thái hoạt động của tài khoản; tài khoản bị khóa sẽ không được đăng nhập. |
 
 ### `Customer`
 
-Mô tả khách hàng hoặc hộ sử dụng điện.
+Mô tả hộ dân hoặc đơn vị sử dụng điện. Tên class vẫn giữ là `Customer` để tương thích với code hiện tại.
 
 Thuộc tính chính:
 
-- `id`
-- `customer_code`
-- `owner_name`
-- `address`
-- `phone_number`
-- `contract_type`
+| Thuộc tính | Mô tả |
+| --- | --- |
+| `id` | Khóa chính định danh hộ/đơn vị trong cơ sở dữ liệu. |
+| `customer_code` | Mã hộ/đơn vị dùng để liên kết với công tơ, hóa đơn, thanh toán và sự cố. |
+| `owner_name` | Tên chủ hộ hoặc đại diện đơn vị ký hợp đồng điện. |
+| `address` | Địa chỉ sử dụng điện của hộ/đơn vị. |
+| `phone_number` | Số điện thoại liên hệ của hộ/đơn vị. |
+| `contract_type` | Loại hợp đồng điện, ví dụ hộ gia đình hoặc nhà máy. |
 
 ### `TariffConfig`
 
@@ -160,14 +164,16 @@ Mô tả cấu hình biểu giá điện cho từng loại hợp đồng.
 
 Thuộc tính chính:
 
-- `id`
-- `contract_type`
-- `fixed_fee`
-- `vat_percent`
-- `peak_multiplier`
-- `base_rate`
-- `formula_note`
-- `updated_at`
+| Thuộc tính | Mô tả |
+| --- | --- |
+| `id` | Khóa chính định danh cấu hình biểu giá. |
+| `contract_type` | Loại hợp đồng áp dụng cấu hình giá điện này. |
+| `fixed_fee` | Phí cố định được cộng vào hóa đơn trước khi tính tổng tiền cuối cùng. |
+| `vat_percent` | Phần trăm thuế VAT áp dụng cho hóa đơn điện. |
+| `peak_multiplier` | Hệ số nhân giờ cao điểm hoặc hệ số điều chỉnh giá theo loại hợp đồng. |
+| `base_rate` | Đơn giá điện cơ bản dùng trong công thức tính tiền. |
+| `formula_note` | Ghi chú mô tả công thức hoặc quy tắc tính giá đang áp dụng. |
+| `updated_at` | Thời điểm cấu hình biểu giá được cập nhật lần cuối. |
 
 ### `MeterReading`
 
@@ -175,12 +181,14 @@ Mô tả dữ liệu ghi chỉ số công tơ.
 
 Thuộc tính chính:
 
-- `id`
-- `customer_code`
-- `reading_period`
-- `new_index`
-- `note`
-- `created_at`
+| Thuộc tính | Mô tả |
+| --- | --- |
+| `id` | Khóa chính định danh bản ghi chỉ số công tơ. |
+| `customer_code` | Mã hộ/đơn vị tương ứng với công tơ được ghi chỉ số. |
+| `reading_period` | Kỳ ghi điện, thường biểu diễn theo tháng hoặc chu kỳ thanh toán. |
+| `new_index` | Chỉ số công tơ mới ghi nhận trong kỳ hiện tại. |
+| `note` | Ghi chú bổ sung khi ghi chỉ số, ví dụ bất thường hoặc điều chỉnh. |
+| `created_at` | Thời điểm bản ghi chỉ số được tạo trong hệ thống. |
 
 ### `Invoice`
 
@@ -188,12 +196,14 @@ Mô tả hóa đơn điện.
 
 Thuộc tính chính:
 
-- `id`
-- `invoice_code`
-- `customer_code`
-- `billing_period`
-- `amount`
-- `status`
+| Thuộc tính | Mô tả |
+| --- | --- |
+| `id` | Khóa chính định danh hóa đơn trong cơ sở dữ liệu. |
+| `invoice_code` | Mã hóa đơn dùng để tra cứu và liên kết với giao dịch thanh toán. |
+| `customer_code` | Mã hộ/đơn vị được lập hóa đơn. |
+| `billing_period` | Kỳ tính tiền điện của hóa đơn. |
+| `amount` | Tổng số tiền phải thanh toán sau khi tính tiền điện, phí và thuế. |
+| `status` | Trạng thái thanh toán của hóa đơn, ví dụ chưa thanh toán hoặc đã thanh toán. |
 
 ### `Payment`
 
@@ -201,11 +211,13 @@ Mô tả giao dịch thanh toán.
 
 Thuộc tính chính:
 
-- `id`
-- `invoice_code`
-- `paid_amount`
-- `payment_method`
-- `paid_at`
+| Thuộc tính | Mô tả |
+| --- | --- |
+| `id` | Khóa chính định danh giao dịch thanh toán. |
+| `invoice_code` | Mã hóa đơn được thanh toán. |
+| `paid_amount` | Số tiền đã được Admin ghi nhận thanh toán. |
+| `payment_method` | Phương thức thanh toán, ví dụ tiền mặt hoặc chuyển khoản. |
+| `paid_at` | Thời điểm phát sinh hoặc ghi nhận thanh toán. |
 
 ### `Incident`
 
@@ -213,13 +225,15 @@ Mô tả sự cố điện.
 
 Thuộc tính chính:
 
-- `id`
-- `customer_code`
-- `incident_type`
-- `priority`
-- `description`
-- `status`
-- `received_date`
+| Thuộc tính | Mô tả |
+| --- | --- |
+| `id` | Khóa chính định danh sự cố điện. |
+| `customer_code` | Mã hộ/đơn vị liên quan đến sự cố. |
+| `incident_type` | Loại sự cố, ví dụ mất điện, chập điện hoặc hỏng công tơ. |
+| `priority` | Mức độ ưu tiên xử lý sự cố. |
+| `description` | Nội dung mô tả chi tiết sự cố được ghi nhận. |
+| `status` | Trạng thái xử lý sự cố, ví dụ đã tiếp nhận, đang xử lý hoặc hoàn thành. |
+| `received_date` | Ngày hệ thống tiếp nhận thông tin sự cố. |
 
 ### Enum dùng trong entity
 
@@ -309,7 +323,7 @@ Chức năng:
 
 Chức năng:
 
-- lấy danh sách khách hàng
+- lấy danh sách hộ/đơn vị sử dụng điện
 
 Đầu ra:
 
@@ -354,7 +368,7 @@ Vai trò:
 
 Vai trò:
 
-- lấy dữ liệu khách hàng từ repository
+- lấy dữ liệu hộ/đơn vị sử dụng điện từ repository
 - chuyển sang `CustomerDTO` cho UI sử dụng
 
 ### `TariffService`
@@ -492,7 +506,7 @@ Ghi chú:
 
 Mục đích:
 
-- lưu thông tin hộ dân hoặc khách hàng nhà máy
+- lưu thông tin hộ dân hoặc đơn vị sản xuất
 
 Các cột:
 
@@ -676,7 +690,6 @@ Nên bổ sung:
 
 - khóa ngoại
 - index cho `customer_code`, `invoice_code`, `billing_period`
-- bảng `roles` nếu phân quyền chi tiết hơn
 - bảng `audit_logs` để lưu nhật ký thao tác
 
 ## 7.3. Mở rộng nghiệp vụ

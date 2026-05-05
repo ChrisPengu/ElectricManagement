@@ -130,7 +130,7 @@ class CongToForm(QWidget):
         self.txt_moi.setPlaceholderText("Nhập chỉ số công tơ mới")
 
         self.txt_note = QLineEdit()
-        self.txt_note.setPlaceholderText("Ví dụ: đọc số tại chỗ, khách hàng xác nhận, kiểm tra lại...")
+        self.txt_note.setPlaceholderText("Ví dụ: đọc số tại chỗ, đã đối chiếu với chủ hộ, cần kiểm tra lại...")
 
         form.addRow(lbl_house, self.cbo_hodan)
         form.addRow(lbl_contract, self.cbo_contract)
@@ -189,7 +189,7 @@ class CongToForm(QWidget):
 
         self.table = QTableWidget(3, 5)
         self.table.setHorizontalHeaderLabels(
-            ["Mã hộ", "Khách hàng", "Loại hợp đồng", "Kỳ ghi", "Chỉ số mới"]
+            ["Mã hộ", "Hộ/đơn vị dùng điện", "Loại hợp đồng", "Kỳ ghi", "Chỉ số mới"]
         )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)

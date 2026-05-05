@@ -1,3 +1,12 @@
+import sys
+from pathlib import Path
+
+if __package__ in {None, ""}:
+    project_root = Path(__file__).resolve().parents[1]
+    project_root_str = str(project_root)
+    if project_root_str not in sys.path:
+        sys.path.insert(0, project_root_str)
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QWidget,
@@ -21,8 +30,8 @@ from ui.tariff import TariffForm
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.display_name = "Người dùng"
-        self.role = "Nhân viên"
+        self.display_name = "Quản trị viên"
+        self.role = "Admin"
         self.menu_buttons = []
         self.page_meta = []
         self.build_ui()
@@ -210,7 +219,7 @@ class MainWindow(QWidget):
         brand = QLabel("Electric Management")
         brand.setObjectName("brand")
 
-        brand_sub = QLabel("Điều phối dịch vụ điện dân cư và sản xuất trên một giao diện thống nhất.")
+        brand_sub = QLabel("Phần mềm quản lý dịch vụ cung cấp điện tại khu dân cư dành cho Admin.")
         brand_sub.setObjectName("brandSub")
         brand_sub.setWordWrap(True)
 
@@ -220,13 +229,13 @@ class MainWindow(QWidget):
         session_layout.setContentsMargins(16, 16, 16, 16)
         session_layout.setSpacing(6)
 
-        self.user_info = QLabel("Người dùng")
+        self.user_info = QLabel("Quản trị viên")
         self.user_info.setObjectName("userInfo")
 
-        self.user_sub_info = QLabel("Vai trò: Nhân viên")
+        self.user_sub_info = QLabel("Vai trò: Admin")
         self.user_sub_info.setObjectName("userSubInfo")
 
-        session_hint = QLabel("Màn hình mới đã bổ sung phân hệ biểu giá điện và cấu hình loại hợp đồng.")
+        session_hint = QLabel("Toàn bộ phân hệ tập trung cho quản trị: hộ dùng điện, công tơ, hóa đơn, thanh toán, sự cố và báo cáo.")
         session_hint.setObjectName("sidebarHint")
         session_hint.setWordWrap(True)
 
@@ -266,8 +275,8 @@ class MainWindow(QWidget):
                 "widget": self.hoadon,
             },
             {
-                "title": "Quản lý thanh toán",
-                "subtitle": "Xác nhận thanh toán nhanh, theo dõi trạng thái hóa đơn và chuẩn bị biên lai cho khách hàng.",
+                "title": "Quản lý thu tiền",
+                "subtitle": "Admin ghi nhận giao dịch thu, đối soát công nợ và cập nhật trạng thái hóa đơn cho từng hộ hoặc đơn vị sử dụng điện.",
                 "widget": self.thanhtoan,
             },
             {
@@ -328,7 +337,7 @@ class MainWindow(QWidget):
         title_block.addWidget(self.header_title)
         title_block.addWidget(self.header_sub)
 
-        self.header_badge = QLabel("Phiên giao diện 2.0")
+        self.header_badge = QLabel("Admin console")
         self.header_badge.setObjectName("headerBadge")
         self.header_badge.setAlignment(Qt.AlignCenter)
 
@@ -354,9 +363,9 @@ class MainWindow(QWidget):
         left_info.addWidget(self.role_text)
         left_info.addStretch()
 
-        stat_one = self.build_stat_card("Phân hệ đang mở", "07")
-        stat_two = self.build_stat_card("Loại hợp đồng", "02")
-        stat_three = self.build_stat_card("Trạng thái app", "Demo")
+        stat_one = self.build_stat_card("Phân hệ quản lý", "07")
+        stat_two = self.build_stat_card("Đối tượng sử dụng", "Admin")
+        stat_three = self.build_stat_card("Chế độ", "Quản trị")
 
         top_card_layout.addLayout(left_info, 2)
         top_card_layout.addWidget(stat_one, 1)

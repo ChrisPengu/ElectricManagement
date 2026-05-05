@@ -251,7 +251,7 @@ class TariffForm(QWidget):
                 "Áp dụng cơ chế tính lũy tiến theo bậc tiêu thụ. Phù hợp với hộ dân và khu nhà ở, "
                 "ưu tiên mô hình giá tăng theo sản lượng sử dụng."
             )
-            self.lbl_table_desc.setText("Minh họa các bậc giá để bạn chuẩn hóa công thức cho nhóm khách hàng hộ dân.")
+            self.lbl_table_desc.setText("Minh họa các bậc giá để Admin chuẩn hóa công thức cho nhóm hộ dân.")
             self.txt_formula.setPlainText(
                 "Tiền điện hộ gia đình = Phí cố định + Tổng(kWh theo từng bậc x đơn giá bậc) + VAT\n\n"
                 f"Phí cố định hiện tại: {fixed_fee:,} VNĐ/kỳ\n"

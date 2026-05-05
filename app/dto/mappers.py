@@ -1,6 +1,6 @@
 from app.dto.requests import MeterReadingCreateDTO, TariffUpsertDTO
-from app.dto.responses import CustomerDTO, MeterReadingDTO, TariffConfigDTO, UserDTO
-from app.models import Customer, MeterReading, TariffConfig, UserAccount
+from app.dto.responses import CustomerDTO, MeterReadingDTO, PaymentDTO, TariffConfigDTO, UserDTO
+from app.models import Customer, MeterReading, Payment, TariffConfig, UserAccount
 
 
 def to_user_dto(user: UserAccount) -> UserDTO:
@@ -65,4 +65,18 @@ def to_meter_reading_dto(reading: MeterReading) -> MeterReadingDTO:
         new_index=reading.new_index,
         note=reading.note,
         created_at=reading.created_at.isoformat(sep=" ", timespec="seconds") if reading.created_at else "",
+    )
+
+
+def to_payment_dto(payment: Payment) -> PaymentDTO:
+    return PaymentDTO(
+        id=payment.id,
+        receipt_code=payment.receipt_code,
+        invoice_code=payment.invoice_code,
+        paid_amount=payment.paid_amount,
+        payment_method=payment.payment_method,
+        payer_name=payment.payer_name,
+        collected_by_user_id=payment.collected_by_user_id,
+        note=payment.note,
+        paid_at=payment.paid_at.isoformat(sep=" ", timespec="seconds") if payment.paid_at else "",
     )

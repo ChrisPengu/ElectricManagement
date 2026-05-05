@@ -184,13 +184,13 @@ class LoginForm(QWidget):
         hero_layout.setContentsMargins(30, 28, 30, 28)
         hero_layout.setSpacing(18)
 
-        title = QLabel("Quản lý dịch vụ cung cấp điện cho khu dân cư")
+        title = QLabel("Quản lý dịch vụ cung cấp điện tại khu dân cư")
         title.setObjectName("heroTitle")
         title.setWordWrap(True)
 
         desc = QLabel(
-            "Giao diện mới tập trung vào việc theo dõi hộ dân, ghi chỉ số điện, "
-            "tạo hóa đơn và cấu hình biểu giá theo từng loại hợp đồng cung cấp điện."
+            "Giao diện dành riêng cho Admin để quản lý hộ dùng điện, ghi chỉ số công tơ, "
+            "lập hóa đơn, xác nhận thanh toán và theo dõi sự cố."
         )
         desc.setObjectName("heroDesc")
         desc.setWordWrap(True)
@@ -201,7 +201,7 @@ class LoginForm(QWidget):
         metric_layout.setContentsMargins(18, 16, 18, 16)
         metric_layout.setSpacing(18)
 
-        metric_one = self.build_metric("07", "Phân hệ quản lý")
+        metric_one = self.build_metric("07", "Phân hệ Admin")
         metric_two = self.build_metric("02", "Loại hợp đồng")
 
         metric_layout.addWidget(metric_one)
@@ -211,14 +211,14 @@ class LoginForm(QWidget):
         feature_row.setSpacing(14)
         feature_row.addWidget(
             self.build_feature_card(
-                "Biểu giá linh hoạt",
-                "Thiết lập công thức tính tiền riêng cho hợp đồng hộ gia đình và nhà máy."
+                "Quản lý tập trung",
+                "Điều phối hồ sơ hộ dùng điện, công tơ, hóa đơn, thanh toán và sự cố trên một màn hình quản trị."
             )
         )
         feature_row.addWidget(
             self.build_feature_card(
-                "Ghi chỉ số gọn hơn",
-                "Màn hình công tơ chỉ nhập chỉ số mới để sẵn sàng cho bước tích hợp database."
+                "Biểu giá linh hoạt",
+                "Thiết lập công thức tính tiền riêng cho hợp đồng hộ gia đình và đơn vị sản xuất."
             )
         )
 
@@ -238,15 +238,15 @@ class LoginForm(QWidget):
         card_layout.setContentsMargins(42, 42, 42, 42)
         card_layout.setSpacing(0)
 
-        eyebrow = QLabel("PHIÊN ĐĂNG NHẬP")
+        eyebrow = QLabel("CỔNG ADMIN")
         eyebrow.setObjectName("cardEyebrow")
         eyebrow.setAlignment(Qt.AlignCenter)
 
-        card_title = QLabel("Đăng nhập hệ thống")
+        card_title = QLabel("Đăng nhập quản trị")
         card_title.setObjectName("cardTitle")
         card_title.setAlignment(Qt.AlignCenter)
 
-        subtitle = QLabel("Truy cập giao diện điều hành và các phân hệ nghiệp vụ của phần mềm.")
+        subtitle = QLabel("Chỉ tài khoản Admin được truy cập các phân hệ quản lý của phần mềm.")
         subtitle.setObjectName("cardSubtitle")
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setWordWrap(True)
@@ -258,7 +258,7 @@ class LoginForm(QWidget):
         card_layout.addWidget(subtitle)
         card_layout.addSpacing(30)
 
-        hint = QLabel("Tài khoản demo mặc định: admin / admin123")
+        hint = QLabel("Tài khoản Admin demo: admin / admin123")
         hint.setObjectName("loginHint")
         hint.setWordWrap(True)
         card_layout.addWidget(hint)
@@ -294,7 +294,7 @@ class LoginForm(QWidget):
 
         card_layout.addSpacing(24)
 
-        demo = QLabel("Nhóm 13 | Giao diện cập nhật")
+        demo = QLabel("Phần mềm quản lý dịch vụ cung cấp điện tại khu dân cư")
         demo.setObjectName("demoText")
         demo.setAlignment(Qt.AlignCenter)
         card_layout.addWidget(demo)

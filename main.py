@@ -11,7 +11,7 @@ class App(QStackedWidget):
         super().__init__()
         self.context = AppContext()
 
-        self.setWindowTitle("Phần mềm quản lý dịch vụ cung cấp điện")
+        self.setWindowTitle("Phần mềm quản lý dịch vụ cung cấp điện tại khu dân cư")
         self.resize(1365, 768)
         self.setMinimumSize(1100, 680)
 
@@ -43,7 +43,7 @@ class App(QStackedWidget):
             QMessageBox.warning(
                 self,
                 "Đăng nhập thất bại",
-                "Tên đăng nhập hoặc mật khẩu không đúng."
+                "Tên đăng nhập, mật khẩu không đúng hoặc tài khoản không có quyền Admin."
             )
 
     def handle_logout(self):

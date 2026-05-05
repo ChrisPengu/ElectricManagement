@@ -47,10 +47,10 @@ class HoDanForm(QWidget):
         eyebrow = QLabel("DANH MỤC HỘ DÂN")
         eyebrow.setProperty("class", "sectionEyebrow")
 
-        title = QLabel("Cập nhật hồ sơ khách hàng sử dụng điện")
+        title = QLabel("Cập nhật hồ sơ hộ/đơn vị sử dụng điện")
         title.setProperty("class", "sectionTitle")
 
-        desc = QLabel("Quản lý thông tin hộ dân, địa chỉ và dữ liệu nền cho các phân hệ công tơ, hóa đơn và sự cố.")
+        desc = QLabel("Quản lý thông tin hộ dân, đơn vị sử dụng điện, địa chỉ và dữ liệu nền cho các phân hệ công tơ, hóa đơn và sự cố.")
         desc.setProperty("class", "sectionDesc")
         desc.setWordWrap(True)
 

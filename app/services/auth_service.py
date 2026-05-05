@@ -9,11 +9,19 @@ class AuthService:
         self.auth_repository = auth_repository
 
     def authenticate(self, request: LoginRequestDTO) -> UserDTO | None:
-        account = self.auth_repository.get_by_username(request.username)
+        username = request.username.strip()
+        password = request.password.strip()
+
+        if not username or not password:
+            return None
+
+        account = self.auth_repository.get_by_username(username)
         if account is None:
             return None
         if not account.is_active:
             return None
-        if account.password != request.password:
+        if account.password != password:
+            return None
+        if account.role.strip().casefold() != "admin":
             return None
         return to_user_dto(account)

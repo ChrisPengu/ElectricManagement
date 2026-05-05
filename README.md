@@ -6,6 +6,7 @@
 
 Mục tiêu nghiệp vụ mà dự án đang hướng tới:
 
+- Đối tượng sử dụng phần mềm chỉ là `Admin`.
 - Quản lý hộ dân sử dụng điện.
 - Theo dõi chỉ số công tơ điện.
 - Quản lý hóa đơn điện theo kỳ.
@@ -45,6 +46,7 @@ ElectricManagement/
 - Đã có kiểm tra tài khoản mẫu:
   - Tài khoản: `admin`
   - Mật khẩu: `admin123`
+- Chỉ tài khoản có vai trò `Admin` được phép truy cập hệ thống.
 - Sau khi đăng nhập thành công, hệ thống chuyển sang màn hình quản trị chính.
 - Đã có chức năng đăng xuất và quay về màn hình đăng nhập.
 
@@ -388,15 +390,12 @@ Những điểm còn hạn chế:
 - Kiểm tra các trường bắt buộc.
 - Kiểm tra định dạng số tiền, chỉ số điện và ngày tháng.
 
-### 7.4. Quản lý tài khoản và phân quyền
+### 7.4. Quản lý tài khoản Admin
 
-- Tách bảng người dùng riêng.
+- Tách bảng người dùng riêng nhưng chỉ phục vụ tài khoản quản trị.
 - Mã hóa mật khẩu thay vì hard-code.
-- Hỗ trợ vai trò:
-  - quản trị viên
-  - nhân viên thu tiền
-  - nhân viên kỹ thuật
-  - nhân viên chăm sóc khách hàng
+- Không xây dựng tài khoản hoặc cổng tự phục vụ cho hộ dân.
+- Ghi nhận lịch sử thao tác theo tài khoản Admin.
 
 ### 7.5. Nhật ký và bảo trì hệ thống
 
@@ -414,7 +413,7 @@ Nếu phát triển tiếp theo hướng thực tế, nên ưu tiên theo thứ 
 3. Xây luồng nghiệp vụ `công tơ -> hóa đơn -> thanh toán`.
 4. Bổ sung kiểm tra dữ liệu đầu vào và thông báo lỗi.
 5. Hoàn thiện báo cáo, tìm kiếm, lọc và xuất file.
-6. Bổ sung phân quyền người dùng và lịch sử thao tác.
+6. Bổ sung lịch sử thao tác và bảo mật tài khoản Admin.
 
 ## 11. Cách chạy dự án
 

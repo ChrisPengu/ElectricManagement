@@ -44,7 +44,7 @@ class SuCoForm(QWidget):
         title = QLabel("Tiếp nhận và phân loại sự cố điện")
         title.setProperty("class", "sectionTitle")
 
-        desc = QLabel("Ghi nhận sự cố theo hộ dân hoặc khách hàng doanh nghiệp để hỗ trợ đội kỹ thuật xử lý nhanh hơn.")
+        desc = QLabel("Ghi nhận sự cố theo hộ dân hoặc đơn vị sản xuất để hỗ trợ đội kỹ thuật xử lý nhanh hơn.")
         desc.setProperty("class", "sectionDesc")
         desc.setWordWrap(True)
 

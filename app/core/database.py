@@ -58,12 +58,18 @@ class DatabaseManager:
             connection.commit()
 
     def initialize(self) -> None:
-        with self.session() as connection:
-            cursor = connection.cursor()
-            for statement in self._schema_statements():
-                cursor.execute(statement)
-            self._seed_default_data(cursor)
-            connection.commit()
+        try:
+            with self.session() as connection:
+                cursor = connection.cursor()
+                for statement in self._schema_statements():
+                    cursor.execute(statement)
+                self._seed_default_data(cursor)
+                connection.commit()
+        except sqlite3.OperationalError as exc:
+            if self.backend == "sqlite" and "readonly" in str(exc).lower():
+                self._validate_readonly_sqlite()
+                return
+            raise
 
     def _connect_sqlite(self):
         connection = sqlite3.connect(self.db_path)
@@ -113,6 +119,36 @@ class DatabaseManager:
             return {column: row[column] for column in columns}
         return dict(zip(columns, row))
 
+    def _validate_readonly_sqlite(self) -> None:
+        required_tables = {
+            "users",
+            "customers",
+            "tariff_configs",
+            "meter_readings",
+            "invoices",
+            "payments",
+            "incidents",
+        }
+
+        with self.session() as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                """
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'table'
+                """
+            )
+            existing_tables = {row[0] for row in cursor.fetchall()}
+
+        missing_tables = sorted(required_tables - existing_tables)
+        if missing_tables:
+            missing_list = ", ".join(missing_tables)
+            raise RuntimeError(
+                "SQLite database is read-only and cannot be initialized. "
+                f"Missing required tables: {missing_list}."
+            )
+
     def _schema_statements(self) -> Iterable[str]:
         if self.backend == "sqlserver":
             return self._sqlserver_schema_statements()
@@ -159,7 +195,10 @@ class DatabaseManager:
                 reading_period TEXT NOT NULL,
                 new_index INTEGER NOT NULL,
                 note TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                recorded_by_user_id INTEGER,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (customer_code) REFERENCES customers(customer_code),
+                FOREIGN KEY (recorded_by_user_id) REFERENCES users(id)
             )
             """,
             """
@@ -168,17 +207,30 @@ class DatabaseManager:
                 invoice_code TEXT UNIQUE NOT NULL,
                 customer_code TEXT NOT NULL,
                 billing_period TEXT NOT NULL,
+                consumption_kwh INTEGER NOT NULL DEFAULT 0,
+                fixed_fee INTEGER NOT NULL DEFAULT 0,
+                vat_amount INTEGER NOT NULL DEFAULT 0,
                 amount INTEGER NOT NULL,
-                status TEXT NOT NULL
+                status TEXT NOT NULL,
+                issued_by_user_id INTEGER,
+                issued_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (customer_code) REFERENCES customers(customer_code),
+                FOREIGN KEY (issued_by_user_id) REFERENCES users(id)
             )
             """,
             """
             CREATE TABLE IF NOT EXISTS payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                receipt_code TEXT UNIQUE NOT NULL,
                 invoice_code TEXT NOT NULL,
                 paid_amount INTEGER NOT NULL,
                 payment_method TEXT NOT NULL,
-                paid_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                payer_name TEXT NOT NULL DEFAULT '',
+                collected_by_user_id INTEGER NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                paid_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (invoice_code) REFERENCES invoices(invoice_code),
+                FOREIGN KEY (collected_by_user_id) REFERENCES users(id)
             )
             """,
             """
@@ -189,7 +241,22 @@ class DatabaseManager:
                 priority TEXT NOT NULL,
                 description TEXT NOT NULL,
                 status TEXT NOT NULL,
-                received_date TEXT
+                received_by_user_id INTEGER,
+                received_date TEXT,
+                FOREIGN KEY (customer_code) REFERENCES customers(customer_code),
+                FOREIGN KEY (received_by_user_id) REFERENCES users(id)
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                entity_name TEXT NOT NULL,
+                entity_key TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
             """,
         ]
@@ -202,7 +269,7 @@ class DatabaseManager:
                 id INT IDENTITY(1,1) PRIMARY KEY,
                 username NVARCHAR(50) UNIQUE NOT NULL,
                 password NVARCHAR(255) NOT NULL,
-                role NVARCHAR(50) NOT NULL,
+                role NVARCHAR(50) NOT NULL CONSTRAINT CK_users_role_admin CHECK (role = N'Admin'),
                 display_name NVARCHAR(100) NOT NULL,
                 is_active BIT NOT NULL DEFAULT 1
             )
@@ -239,7 +306,10 @@ class DatabaseManager:
                 reading_period NVARCHAR(20) NOT NULL,
                 new_index INT NOT NULL,
                 note NVARCHAR(500) NOT NULL DEFAULT '',
-                created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+                recorded_by_user_id INT NULL,
+                created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+                CONSTRAINT FK_meter_readings_customers FOREIGN KEY (customer_code) REFERENCES customers(customer_code),
+                CONSTRAINT FK_meter_readings_users FOREIGN KEY (recorded_by_user_id) REFERENCES users(id)
             )
             """,
             """
@@ -249,18 +319,31 @@ class DatabaseManager:
                 invoice_code NVARCHAR(50) UNIQUE NOT NULL,
                 customer_code NVARCHAR(50) NOT NULL,
                 billing_period NVARCHAR(20) NOT NULL,
+                consumption_kwh INT NOT NULL DEFAULT 0,
+                fixed_fee INT NOT NULL DEFAULT 0,
+                vat_amount INT NOT NULL DEFAULT 0,
                 amount INT NOT NULL,
-                status NVARCHAR(50) NOT NULL
+                status NVARCHAR(50) NOT NULL,
+                issued_by_user_id INT NULL,
+                issued_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+                CONSTRAINT FK_invoices_customers FOREIGN KEY (customer_code) REFERENCES customers(customer_code),
+                CONSTRAINT FK_invoices_users FOREIGN KEY (issued_by_user_id) REFERENCES users(id)
             )
             """,
             """
             IF OBJECT_ID('payments', 'U') IS NULL
             CREATE TABLE payments (
                 id INT IDENTITY(1,1) PRIMARY KEY,
+                receipt_code NVARCHAR(50) UNIQUE NOT NULL,
                 invoice_code NVARCHAR(50) NOT NULL,
                 paid_amount INT NOT NULL,
                 payment_method NVARCHAR(50) NOT NULL,
-                paid_at DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+                payer_name NVARCHAR(100) NOT NULL DEFAULT '',
+                collected_by_user_id INT NOT NULL,
+                note NVARCHAR(500) NOT NULL DEFAULT '',
+                paid_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+                CONSTRAINT FK_payments_invoices FOREIGN KEY (invoice_code) REFERENCES invoices(invoice_code),
+                CONSTRAINT FK_payments_users FOREIGN KEY (collected_by_user_id) REFERENCES users(id)
             )
             """,
             """
@@ -272,8 +355,68 @@ class DatabaseManager:
                 priority NVARCHAR(50) NOT NULL,
                 description NVARCHAR(500) NOT NULL,
                 status NVARCHAR(50) NOT NULL,
-                received_date DATE NULL
+                received_by_user_id INT NULL,
+                received_date DATE NULL,
+                CONSTRAINT FK_incidents_customers FOREIGN KEY (customer_code) REFERENCES customers(customer_code),
+                CONSTRAINT FK_incidents_users FOREIGN KEY (received_by_user_id) REFERENCES users(id)
             )
+            """,
+            """
+            IF OBJECT_ID('audit_logs', 'U') IS NULL
+            CREATE TABLE audit_logs (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                user_id INT NOT NULL,
+                action NVARCHAR(50) NOT NULL,
+                entity_name NVARCHAR(100) NOT NULL,
+                entity_key NVARCHAR(100) NOT NULL,
+                description NVARCHAR(500) NOT NULL DEFAULT '',
+                created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+                CONSTRAINT FK_audit_logs_users FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+            """,
+            """
+            IF COL_LENGTH('meter_readings', 'recorded_by_user_id') IS NULL
+            ALTER TABLE meter_readings ADD recorded_by_user_id INT NULL
+            """,
+            """
+            IF COL_LENGTH('invoices', 'consumption_kwh') IS NULL
+            ALTER TABLE invoices ADD consumption_kwh INT NOT NULL CONSTRAINT DF_invoices_consumption_kwh DEFAULT 0
+            """,
+            """
+            IF COL_LENGTH('invoices', 'fixed_fee') IS NULL
+            ALTER TABLE invoices ADD fixed_fee INT NOT NULL CONSTRAINT DF_invoices_fixed_fee DEFAULT 0
+            """,
+            """
+            IF COL_LENGTH('invoices', 'vat_amount') IS NULL
+            ALTER TABLE invoices ADD vat_amount INT NOT NULL CONSTRAINT DF_invoices_vat_amount DEFAULT 0
+            """,
+            """
+            IF COL_LENGTH('invoices', 'issued_by_user_id') IS NULL
+            ALTER TABLE invoices ADD issued_by_user_id INT NULL
+            """,
+            """
+            IF COL_LENGTH('invoices', 'issued_at') IS NULL
+            ALTER TABLE invoices ADD issued_at DATETIME2 NOT NULL CONSTRAINT DF_invoices_issued_at DEFAULT SYSDATETIME()
+            """,
+            """
+            IF COL_LENGTH('payments', 'receipt_code') IS NULL
+            ALTER TABLE payments ADD receipt_code NVARCHAR(50) NULL
+            """,
+            """
+            IF COL_LENGTH('payments', 'payer_name') IS NULL
+            ALTER TABLE payments ADD payer_name NVARCHAR(100) NOT NULL CONSTRAINT DF_payments_payer_name DEFAULT ''
+            """,
+            """
+            IF COL_LENGTH('payments', 'collected_by_user_id') IS NULL
+            ALTER TABLE payments ADD collected_by_user_id INT NULL
+            """,
+            """
+            IF COL_LENGTH('payments', 'note') IS NULL
+            ALTER TABLE payments ADD note NVARCHAR(500) NOT NULL CONSTRAINT DF_payments_note DEFAULT ''
+            """,
+            """
+            IF COL_LENGTH('incidents', 'received_by_user_id') IS NULL
+            ALTER TABLE incidents ADD received_by_user_id INT NULL
             """,
         ]
 
