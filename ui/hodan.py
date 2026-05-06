@@ -11,15 +11,21 @@ from PyQt5.QtWidgets import (
     QHeaderView,
     QFrame,
     QLabel,
+    QComboBox,
+    QMessageBox,
 )
 
+from app.dto.requests import CustomerCreateDTO, CustomerUpdateDTO
 from ui.common_styles import PAGE_STYLE
 
 
 class HoDanForm(QWidget):
-    def __init__(self):
+    def __init__(self, context=None):
         super().__init__()
+        self.context = context
+        self.customers = []
         self.build_ui()
+        self.load_customers()
 
     def build_ui(self):
         self.setStyleSheet(PAGE_STYLE)
@@ -72,10 +78,15 @@ class HoDanForm(QWidget):
         lbl_sdt = QLabel("Số điện thoại")
         lbl_sdt.setProperty("class", "fieldLabel")
 
+        lbl_contract = QLabel("Loại hợp đồng")
+        lbl_contract.setProperty("class", "fieldLabel")
+
         self.txt_ma = QLineEdit()
         self.txt_ten = QLineEdit()
         self.txt_diachi = QLineEdit()
         self.txt_sdt = QLineEdit()
+        self.cbo_contract = QComboBox()
+        self.cbo_contract.addItems(["Hộ gia đình", "Nhà máy"])
 
         self.txt_ma.setPlaceholderText("VD: HD001")
         self.txt_ten.setPlaceholderText("Nhập tên chủ hộ")
@@ -86,6 +97,7 @@ class HoDanForm(QWidget):
         form.addRow(lbl_ten, self.txt_ten)
         form.addRow(lbl_diachi, self.txt_diachi)
         form.addRow(lbl_sdt, self.txt_sdt)
+        form.addRow(lbl_contract, self.cbo_contract)
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
@@ -127,17 +139,17 @@ class HoDanForm(QWidget):
         filter_row = QHBoxLayout()
         filter_row.setSpacing(10)
 
-        search_box = QLineEdit()
-        search_box.setPlaceholderText("Tìm nhanh theo mã hộ, tên chủ hộ hoặc số điện thoại")
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Tìm nhanh theo mã hộ, tên chủ hộ hoặc số điện thoại")
 
         btn_filter = QPushButton("Lọc nhanh")
         btn_filter.setProperty("variant", "secondary")
 
-        filter_row.addWidget(search_box, 1)
+        filter_row.addWidget(self.search_box, 1)
         filter_row.addWidget(btn_filter)
 
-        self.table = QTableWidget(3, 4)
-        self.table.setHorizontalHeaderLabels(["Mã hộ", "Tên chủ hộ", "Địa chỉ", "Số điện thoại"])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Mã hộ", "Tên chủ hộ", "Địa chỉ", "Số điện thoại", "Loại hợp đồng"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.horizontalHeader().setMinimumHeight(42)
         self.table.verticalHeader().setVisible(False)
@@ -147,17 +159,12 @@ class HoDanForm(QWidget):
         self.table.setMinimumHeight(340)
         self.table.setFocusPolicy(Qt.NoFocus)
 
-        demo_data = [
-            ["HD001", "Nguyễn Văn A", "Khu A - Tổ 1", "0901111111"],
-            ["HD002", "Trần Thị B", "Khu A - Tổ 2", "0902222222"],
-            ["HD003", "Xưởng May Hòa Phát", "Khu B - Cụm CN 1", "0903333333"],
-        ]
-
-        for row, data in enumerate(demo_data):
-            for col, value in enumerate(data):
-                item = QTableWidgetItem(value)
-                item.setTextAlignment(Qt.AlignVCenter | Qt.AlignCenter)
-                self.table.setItem(row, col, item)
+        self.table.itemSelectionChanged.connect(self.fill_form_from_selection)
+        self.btn_them.clicked.connect(self.add_customer)
+        self.btn_sua.clicked.connect(self.update_customer)
+        self.btn_xoa.clicked.connect(self.delete_customer)
+        self.btn_lammoi.clicked.connect(self.clear_form)
+        btn_filter.clicked.connect(self.load_customers)
 
         table_wrapper.addWidget(lbl_table)
         table_wrapper.addWidget(table_desc)
@@ -187,3 +194,86 @@ class HoDanForm(QWidget):
         layout.addWidget(label)
         layout.addWidget(value)
         return card
+
+    def load_customers(self):
+        if not self.context:
+            return
+        keyword = self.search_box.text().strip().casefold() if hasattr(self, "search_box") else ""
+        self.customers = self.context.customer_service.list_customers()
+        rows = [
+            customer for customer in self.customers
+            if not keyword
+            or keyword in customer.customer_code.casefold()
+            or keyword in customer.owner_name.casefold()
+            or keyword in customer.phone_number.casefold()
+        ]
+        self.table.setRowCount(len(rows))
+        for row, customer in enumerate(rows):
+            values = [
+                customer.customer_code,
+                customer.owner_name,
+                customer.address,
+                customer.phone_number,
+                customer.contract_type,
+            ]
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setTextAlignment(Qt.AlignVCenter | Qt.AlignCenter)
+                self.table.setItem(row, col, item)
+
+    def fill_form_from_selection(self):
+        row = self.table.currentRow()
+        if row < 0:
+            return
+        self.txt_ma.setText(self.table.item(row, 0).text())
+        self.txt_ten.setText(self.table.item(row, 1).text())
+        self.txt_diachi.setText(self.table.item(row, 2).text())
+        self.txt_sdt.setText(self.table.item(row, 3).text())
+        self.cbo_contract.setCurrentText(self.table.item(row, 4).text())
+
+    def add_customer(self):
+        try:
+            self.context.customer_service.create_customer(
+                CustomerCreateDTO(
+                    customer_code=self.txt_ma.text(),
+                    owner_name=self.txt_ten.text(),
+                    address=self.txt_diachi.text(),
+                    phone_number=self.txt_sdt.text(),
+                    contract_type=self.cbo_contract.currentText(),
+                )
+            )
+            self.load_customers()
+            self.clear_form()
+        except Exception as exc:
+            QMessageBox.warning(self, "Không thể thêm hộ", str(exc))
+
+    def update_customer(self):
+        try:
+            self.context.customer_service.update_customer(
+                CustomerUpdateDTO(
+                    customer_code=self.txt_ma.text(),
+                    owner_name=self.txt_ten.text(),
+                    address=self.txt_diachi.text(),
+                    phone_number=self.txt_sdt.text(),
+                    contract_type=self.cbo_contract.currentText(),
+                )
+            )
+            self.load_customers()
+        except Exception as exc:
+            QMessageBox.warning(self, "Không thể cập nhật hộ", str(exc))
+
+    def delete_customer(self):
+        try:
+            self.context.customer_service.delete_customer(self.txt_ma.text())
+            self.load_customers()
+            self.clear_form()
+        except Exception as exc:
+            QMessageBox.warning(self, "Không thể xóa hộ", str(exc))
+
+    def clear_form(self):
+        self.txt_ma.clear()
+        self.txt_ten.clear()
+        self.txt_diachi.clear()
+        self.txt_sdt.clear()
+        self.cbo_contract.setCurrentIndex(0)
+        self.load_customers()

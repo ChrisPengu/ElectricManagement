@@ -1,4 +1,4 @@
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -11,15 +11,23 @@ from PyQt5.QtWidgets import (
     QFrame,
     QLineEdit,
     QComboBox,
+    QMessageBox,
 )
 
 from ui.common_styles import PAGE_STYLE
 
 
 class HoaDonForm(QWidget):
-    def __init__(self):
+    def __init__(self, context=None):
         super().__init__()
+        self.context = context
+        self.current_user_id = None
         self.build_ui()
+        self.load_customers()
+        self.load_invoices()
+
+    def set_current_user_id(self, user_id):
+        self.current_user_id = user_id
 
     def build_ui(self):
         self.setStyleSheet(PAGE_STYLE)
@@ -53,25 +61,28 @@ class HoaDonForm(QWidget):
         filter_row = QHBoxLayout()
         filter_row.setSpacing(10)
 
-        search_box = QLineEdit()
-        search_box.setPlaceholderText("Tìm theo mã hóa đơn hoặc mã hộ")
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Tìm theo mã hóa đơn hoặc mã hộ")
 
-        status_filter = QComboBox()
-        status_filter.addItems(["Tất cả trạng thái", "Đã thanh toán", "Chưa thanh toán"])
+        self.customer_box = QComboBox()
 
-        btn_create = QPushButton("Tạo hóa đơn")
+        self.status_filter = QComboBox()
+        self.status_filter.addItems(["Tất cả trạng thái", "Đã thanh toán", "Chưa thanh toán"])
+
+        self.btn_create = QPushButton("Tạo hóa đơn")
         btn_detail = QPushButton("Xem chi tiết")
         btn_detail.setProperty("variant", "secondary")
         btn_print = QPushButton("In hóa đơn")
         btn_print.setProperty("variant", "secondary")
 
-        filter_row.addWidget(search_box, 1)
-        filter_row.addWidget(status_filter)
-        filter_row.addWidget(btn_create)
+        filter_row.addWidget(self.search_box, 1)
+        filter_row.addWidget(self.customer_box)
+        filter_row.addWidget(self.status_filter)
+        filter_row.addWidget(self.btn_create)
         filter_row.addWidget(btn_detail)
         filter_row.addWidget(btn_print)
 
-        self.table = QTableWidget(4, 5)
+        self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Mã HĐ", "Mã hộ", "Kỳ hóa đơn", "Số tiền", "Trạng thái"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
@@ -80,18 +91,9 @@ class HoaDonForm(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setMinimumHeight(380)
 
-        demo = [
-            ["HDON001", "HD001", "04/2026", "450.000", "Chưa thanh toán"],
-            ["HDON002", "HD002", "04/2026", "520.000", "Đã thanh toán"],
-            ["HDON003", "HD003", "04/2026", "6.250.000", "Chưa thanh toán"],
-            ["HDON004", "HD001", "03/2026", "390.000", "Đã thanh toán"],
-        ]
-
-        for row_index, row_data in enumerate(demo):
-            for col_index, value in enumerate(row_data):
-                item = QTableWidgetItem(value)
-                item.setTextAlignment(Qt.AlignCenter)
-                self.table.setItem(row_index, col_index, item)
+        self.btn_create.clicked.connect(self.create_invoice)
+        self.search_box.textChanged.connect(self.load_invoices)
+        self.status_filter.currentTextChanged.connect(self.load_invoices)
 
         layout.addWidget(eyebrow)
         layout.addWidget(title)
@@ -119,3 +121,60 @@ class HoaDonForm(QWidget):
         layout.addWidget(label)
         layout.addWidget(value)
         return card
+
+    def load_customers(self):
+        if not self.context:
+            return
+        self.customer_box.clear()
+        for customer in self.context.customer_service.list_customers():
+            self.customer_box.addItem(f"{customer.customer_code} - {customer.owner_name}", customer)
+
+    def load_invoices(self):
+        if not self.context:
+            return
+        keyword = self.search_box.text().strip().casefold()
+        status = self.status_filter.currentText()
+        invoices = self.context.invoice_service.list_invoices()
+        if status != "Tất cả trạng thái":
+            invoices = [invoice for invoice in invoices if invoice.status == status]
+        if keyword:
+            invoices = [
+                invoice for invoice in invoices
+                if keyword in invoice.invoice_code.casefold() or keyword in invoice.customer_code.casefold()
+            ]
+        self.table.setRowCount(len(invoices))
+        for row, invoice in enumerate(invoices):
+            values = [
+                invoice.invoice_code,
+                invoice.customer_code,
+                invoice.billing_period,
+                f"{invoice.amount:,}".replace(",", "."),
+                invoice.status,
+            ]
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(row, col, item)
+
+    def create_invoice(self):
+        customer = self.customer_box.currentData()
+        if not customer:
+            QMessageBox.warning(self, "Thiếu dữ liệu", "Chưa có hộ dùng điện để tạo hóa đơn.")
+            return
+        try:
+            period = QDate.currentDate().toString("MM/yyyy")
+            invoice = self.context.invoice_service.create_invoice_for_customer(
+                customer.customer_code,
+                period,
+                self.current_user_id,
+            )
+            self.context.audit_log_service.record(
+                self.current_user_id,
+                "CREATE",
+                "invoices",
+                invoice.invoice_code,
+                "Tạo hóa đơn từ chỉ số công tơ.",
+            )
+            self.load_invoices()
+        except Exception as exc:
+            QMessageBox.warning(self, "Không thể tạo hóa đơn", str(exc))

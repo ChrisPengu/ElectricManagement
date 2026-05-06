@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QDateEdit,
     QFrame,
+    QMessageBox,
 )
 from PyQt5.QtCore import QDate
 
@@ -13,9 +14,11 @@ from ui.common_styles import PAGE_STYLE
 
 
 class ReportForm(QWidget):
-    def __init__(self):
+    def __init__(self, context=None):
         super().__init__()
+        self.context = context
         self.build_ui()
+        self.load_report()
 
     def build_ui(self):
         self.setStyleSheet(PAGE_STYLE)
@@ -49,16 +52,16 @@ class ReportForm(QWidget):
         self.date_from.setCalendarPopup(True)
         self.date_to.setCalendarPopup(True)
 
-        btn_report = QPushButton("Xem báo cáo")
-        btn_export = QPushButton("Xuất file")
-        btn_export.setProperty("variant", "secondary")
+        self.btn_report = QPushButton("Xem báo cáo")
+        self.btn_export = QPushButton("Xuất file")
+        self.btn_export.setProperty("variant", "secondary")
 
         row.addWidget(QLabel("Từ ngày:"))
         row.addWidget(self.date_from)
         row.addWidget(QLabel("Đến ngày:"))
         row.addWidget(self.date_to)
-        row.addWidget(btn_report)
-        row.addWidget(btn_export)
+        row.addWidget(self.btn_report)
+        row.addWidget(self.btn_export)
 
         filter_layout.addWidget(eyebrow)
         filter_layout.addWidget(title)
@@ -67,9 +70,12 @@ class ReportForm(QWidget):
 
         stats_row = QHBoxLayout()
         stats_row.setSpacing(14)
-        stats_row.addWidget(self.build_stat_card("Tổng số hộ", "125"))
-        stats_row.addWidget(self.build_stat_card("Doanh thu tháng này", "52.0M"))
-        stats_row.addWidget(self.build_stat_card("Hóa đơn chưa thanh toán", "18"))
+        self.stat_customers = self.build_stat_card("Tổng số hộ", "0")
+        self.stat_revenue = self.build_stat_card("Doanh thu đã thu", "0")
+        self.stat_unpaid = self.build_stat_card("Hóa đơn chưa thanh toán", "0")
+        stats_row.addWidget(self.stat_customers)
+        stats_row.addWidget(self.stat_revenue)
+        stats_row.addWidget(self.stat_unpaid)
 
         chart_card = QFrame()
         chart_card.setProperty("class", "card")
@@ -111,6 +117,9 @@ class ReportForm(QWidget):
         chart_layout.addWidget(chart_desc)
         chart_layout.addWidget(chart_placeholder, 1)
 
+        self.btn_report.clicked.connect(self.load_report)
+        self.btn_export.clicked.connect(self.export_report)
+
         root.addWidget(filter_card)
         root.addLayout(stats_row)
         root.addWidget(chart_card, 1)
@@ -128,7 +137,32 @@ class ReportForm(QWidget):
 
         value = QLabel(value_text)
         value.setProperty("class", "metricValue")
+        card.value_label = value
 
         layout.addWidget(label)
         layout.addWidget(value)
         return card
+
+    def load_report(self):
+        if not self.context:
+            return
+        summary = self.context.report_service.summary()
+        self.stat_customers.value_label.setText(str(summary["customers"]))
+        self.stat_revenue.value_label.setText(f"{summary['revenue']:,} VND".replace(",", "."))
+        self.stat_unpaid.value_label.setText(str(summary["unpaid_invoices"]))
+
+    def export_report(self):
+        if not self.context:
+            return
+        summary = self.context.report_service.summary()
+        path = self.context.database.db_path.parent / "report_summary.csv"
+        path.write_text(
+            "metric,value\n"
+            f"customers,{summary['customers']}\n"
+            f"invoices,{summary['invoices']}\n"
+            f"unpaid_invoices,{summary['unpaid_invoices']}\n"
+            f"revenue,{summary['revenue']}\n"
+            f"incidents_open,{summary['incidents_open']}\n",
+            encoding="utf-8",
+        )
+        QMessageBox.information(self, "Đã xuất file", f"Đã xuất báo cáo: {path}")

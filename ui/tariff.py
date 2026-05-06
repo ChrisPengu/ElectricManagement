@@ -14,16 +14,21 @@ from PyQt5.QtWidgets import (
     QHeaderView,
     QPlainTextEdit,
     QPushButton,
+    QMessageBox,
 )
 
+from app.dto.requests import TariffUpsertDTO
+from app.models import ContractType
 from ui.common_styles import PAGE_STYLE
 
 
 class TariffForm(QWidget):
-    def __init__(self):
+    def __init__(self, context=None):
         super().__init__()
+        self.context = context
+        self._loading_config = False
         self.build_ui()
-        self.refresh_contract_view()
+        self.load_contract_config()
 
     def build_ui(self):
         self.setStyleSheet(PAGE_STYLE)
@@ -111,7 +116,7 @@ class TariffForm(QWidget):
 
         self.cbo_contract = QComboBox()
         self.cbo_contract.addItems(["Hộ gia đình", "Nhà máy"])
-        self.cbo_contract.currentTextChanged.connect(self.refresh_contract_view)
+        self.cbo_contract.currentTextChanged.connect(self.load_contract_config)
 
         self.spin_fixed_fee = QSpinBox()
         self.spin_fixed_fee.setRange(0, 5000000)
@@ -169,6 +174,7 @@ class TariffForm(QWidget):
         self.btn_preview = QPushButton("Làm mới xem trước")
         self.btn_preview.setProperty("variant", "secondary")
         self.btn_preview.clicked.connect(self.refresh_contract_view)
+        self.btn_apply.clicked.connect(self.save_config)
 
         btn_row.addWidget(self.btn_apply)
         btn_row.addWidget(self.btn_preview)
@@ -239,6 +245,8 @@ class TariffForm(QWidget):
         root.addLayout(body_row, 1)
 
     def refresh_contract_view(self):
+        if self._loading_config:
+            return
         contract_type = self.cbo_contract.currentText()
         fixed_fee = self.spin_fixed_fee.value()
         vat = self.spin_vat.value()
@@ -304,3 +312,41 @@ class TariffForm(QWidget):
                 item = QTableWidgetItem(value)
                 item.setTextAlignment(Qt.AlignCenter)
                 self.table_tariff.setItem(row_index, col_index, item)
+
+    def load_contract_config(self):
+        if not self.context:
+            self.refresh_contract_view()
+            return
+        contract_type = self.cbo_contract.currentText()
+        try:
+            config = self.context.tariff_service.get_config(ContractType(contract_type))
+        except Exception:
+            config = None
+        if config:
+            self._loading_config = True
+            self.spin_fixed_fee.setValue(config.fixed_fee)
+            self.spin_vat.setValue(config.vat_percent)
+            self.spin_peak.setValue(config.peak_multiplier)
+            self.spin_factory_rate.setValue(config.base_rate)
+            self._loading_config = False
+        self.refresh_contract_view()
+
+    def save_config(self):
+        if not self.context:
+            return
+        contract_type = self.cbo_contract.currentText()
+        try:
+            self.context.tariff_service.save_config(
+                TariffUpsertDTO(
+                    contract_type=contract_type,
+                    fixed_fee=self.spin_fixed_fee.value(),
+                    vat_percent=self.spin_vat.value(),
+                    peak_multiplier=self.spin_peak.value(),
+                    base_rate=self.spin_factory_rate.value(),
+                    formula_note=self.txt_formula.toPlainText(),
+                )
+            )
+            QMessageBox.information(self, "Đã lưu", "Cấu hình biểu giá đã được cập nhật.")
+            self.load_contract_config()
+        except Exception as exc:
+            QMessageBox.warning(self, "Không thể lưu biểu giá", str(exc))

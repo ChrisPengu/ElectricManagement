@@ -1,4 +1,5 @@
 import sqlite3
+import hashlib
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable, Iterator
@@ -57,12 +58,29 @@ class DatabaseManager:
             cursor.executemany(query, list(params_list))
             connection.commit()
 
+    def has_column(self, table_name: str, column_name: str) -> bool:
+        if self.backend == "sqlserver":
+            row = self.fetch_one(
+                """
+                SELECT 1 AS found
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = ? AND COLUMN_NAME = ?
+                """,
+                (table_name, column_name),
+            )
+            return row is not None
+
+        rows = self.fetch_all(f"PRAGMA table_info({table_name})")
+        return any(row["name"] == column_name for row in rows)
+
     def initialize(self) -> None:
         try:
             with self.session() as connection:
                 cursor = connection.cursor()
                 for statement in self._schema_statements():
                     cursor.execute(statement)
+                if self.backend == "sqlite":
+                    self._migrate_sqlite_schema(cursor)
                 self._seed_default_data(cursor)
                 connection.commit()
         except sqlite3.OperationalError as exc:
@@ -148,6 +166,36 @@ class DatabaseManager:
                 "SQLite database is read-only and cannot be initialized. "
                 f"Missing required tables: {missing_list}."
             )
+
+    def _migrate_sqlite_schema(self, cursor) -> None:
+        migrations = {
+            "meter_readings": [
+                ("recorded_by_user_id", "ALTER TABLE meter_readings ADD COLUMN recorded_by_user_id INTEGER"),
+            ],
+            "invoices": [
+                ("consumption_kwh", "ALTER TABLE invoices ADD COLUMN consumption_kwh INTEGER NOT NULL DEFAULT 0"),
+                ("fixed_fee", "ALTER TABLE invoices ADD COLUMN fixed_fee INTEGER NOT NULL DEFAULT 0"),
+                ("vat_amount", "ALTER TABLE invoices ADD COLUMN vat_amount INTEGER NOT NULL DEFAULT 0"),
+                ("issued_by_user_id", "ALTER TABLE invoices ADD COLUMN issued_by_user_id INTEGER"),
+                ("issued_at", "ALTER TABLE invoices ADD COLUMN issued_at TEXT NOT NULL DEFAULT ''"),
+            ],
+            "payments": [
+                ("receipt_code", "ALTER TABLE payments ADD COLUMN receipt_code TEXT"),
+                ("payer_name", "ALTER TABLE payments ADD COLUMN payer_name TEXT NOT NULL DEFAULT ''"),
+                ("collected_by_user_id", "ALTER TABLE payments ADD COLUMN collected_by_user_id INTEGER"),
+                ("note", "ALTER TABLE payments ADD COLUMN note TEXT NOT NULL DEFAULT ''"),
+            ],
+            "incidents": [
+                ("received_by_user_id", "ALTER TABLE incidents ADD COLUMN received_by_user_id INTEGER"),
+            ],
+        }
+
+        for table, column_migrations in migrations.items():
+            cursor.execute(f"PRAGMA table_info({table})")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            for column_name, statement in column_migrations:
+                if column_name not in existing_columns:
+                    cursor.execute(statement)
 
     def _schema_statements(self) -> Iterable[str]:
         if self.backend == "sqlserver":
@@ -432,7 +480,7 @@ class DatabaseManager:
             INSERT OR IGNORE INTO users (username, password, role, display_name, is_active)
             VALUES (?, ?, ?, ?, ?)
             """,
-            ("admin", "admin123", "Admin", "Quản trị viên", 1),
+            ("admin", self._hash_password("admin123"), "Admin", "Quản trị viên", 1),
         )
 
         cursor.executemany(
@@ -467,7 +515,7 @@ class DatabaseManager:
             INSERT INTO users (username, password, role, display_name, is_active)
             VALUES (?, ?, ?, ?, ?)
             """,
-            ("admin", "admin", "admin123", "Admin", "Quản trị viên", 1),
+            ("admin", "admin", self._hash_password("admin123"), "Admin", "Quản trị viên", 1),
         )
 
         customer_rows = [
@@ -500,3 +548,7 @@ class DatabaseManager:
                 """,
                 (tariff[0], *tariff),
             )
+
+    def _hash_password(self, password: str) -> str:
+        digest = hashlib.sha256(password.encode("utf-8")).hexdigest()
+        return f"sha256${digest}"

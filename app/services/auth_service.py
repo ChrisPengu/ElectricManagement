@@ -1,3 +1,5 @@
+import hashlib
+
 from app.dto.mappers import to_user_dto
 from app.dto.requests import LoginRequestDTO
 from app.dto.responses import UserDTO
@@ -20,8 +22,14 @@ class AuthService:
             return None
         if not account.is_active:
             return None
-        if account.password != password:
+        if not self._verify_password(password, account.password):
             return None
         if account.role.strip().casefold() != "admin":
             return None
         return to_user_dto(account)
+
+    def _verify_password(self, raw_password: str, stored_password: str) -> bool:
+        if stored_password.startswith("sha256$"):
+            digest = hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
+            return stored_password == f"sha256${digest}"
+        return stored_password == raw_password

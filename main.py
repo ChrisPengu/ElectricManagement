@@ -16,7 +16,7 @@ class App(QStackedWidget):
         self.setMinimumSize(1100, 680)
 
         self.login = LoginForm()
-        self.main_window = MainWindow()
+        self.main_window = MainWindow(self.context)
 
         self.addWidget(self.login)
         self.addWidget(self.main_window)
@@ -34,6 +34,7 @@ class App(QStackedWidget):
         account = self.context.auth_service.authenticate(LoginRequestDTO(username=username, password=password))
         if account:
             self.main_window.set_user_info(
+                user_id=account.id,
                 display_name=account.display_name,
                 role=account.role
             )

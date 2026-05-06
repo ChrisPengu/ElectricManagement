@@ -11,14 +11,18 @@ from PyQt5.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
+    QMessageBox,
 )
 
+from app.dto.requests import PaymentCreateDTO
 from ui.common_styles import PAGE_STYLE
 
 
 class ThanhToanForm(QWidget):
-    def __init__(self):
+    def __init__(self, context=None):
         super().__init__()
+        self.context = context
+        self.current_user_id = None
         self.receivable_data = {
             "HDON001 - HD001": {
                 "amount": "450.000 VND",
@@ -34,7 +38,12 @@ class ThanhToanForm(QWidget):
             },
         }
         self.build_ui()
+        self.load_receivables()
+        self.load_payments()
         self.update_receivable_info()
+
+    def set_current_user_id(self, user_id):
+        self.current_user_id = user_id
 
     def build_ui(self):
         self.setStyleSheet(PAGE_STYLE)
@@ -131,21 +140,21 @@ class ThanhToanForm(QWidget):
         btns = QHBoxLayout()
         btns.setSpacing(10)
 
-        btn_confirm = QPushButton("Ghi nhan giao dich thu")
+        self.btn_confirm = QPushButton("Ghi nhan giao dich thu")
         btn_reconcile = QPushButton("Danh dau da doi soat")
         btn_reconcile.setProperty("variant", "secondary")
-        btn_refresh = QPushButton("Lam moi")
-        btn_refresh.setProperty("variant", "secondary")
+        self.btn_refresh = QPushButton("Lam moi")
+        self.btn_refresh.setProperty("variant", "secondary")
 
-        btns.addWidget(btn_confirm)
+        btns.addWidget(self.btn_confirm)
         btns.addWidget(btn_reconcile)
-        btns.addWidget(btn_refresh)
+        btns.addWidget(self.btn_refresh)
         btns.addStretch()
 
         table_title = QLabel("Lich su giao dich gan day")
         table_title.setProperty("class", "sectionTitle")
 
-        self.table = QTableWidget(3, 5)
+        self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Bien nhan", "Hoa don", "So tien", "Kenh thu", "Admin ghi nhan"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
@@ -154,16 +163,8 @@ class ThanhToanForm(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setMinimumHeight(190)
 
-        demo_rows = [
-            ["BN001", "HDON002", "520.000", "Tien mat", "Admin"],
-            ["BN002", "HDON004", "390.000", "Chuyen khoan", "Admin"],
-            ["BN003", "HDON005", "1.240.000", "Chuyen khoan", "Admin"],
-        ]
-        for row_index, row_data in enumerate(demo_rows):
-            for col_index, value in enumerate(row_data):
-                item = QTableWidgetItem(value)
-                item.setTextAlignment(Qt.AlignCenter)
-                self.table.setItem(row_index, col_index, item)
+        self.btn_confirm.clicked.connect(self.confirm_payment)
+        self.btn_refresh.clicked.connect(self.refresh_all)
 
         layout.addWidget(eyebrow)
         layout.addWidget(title)
@@ -202,3 +203,73 @@ class ThanhToanForm(QWidget):
         self.lbl_status.setText(data.get("status", "Chua xac dinh"))
         self.lbl_method.setText(data.get("method", "Chua chon"))
         self.lbl_collector.setText(data.get("collector", "Admin"))
+
+    def load_receivables(self):
+        if not self.context:
+            return
+        self.receivable_data = {}
+        for invoice in self.context.invoice_service.list_unpaid():
+            key = f"{invoice.invoice_code} - {invoice.customer_code}"
+            self.receivable_data[key] = {
+                "amount": f"{invoice.amount:,} VND".replace(",", "."),
+                "raw_amount": invoice.amount,
+                "invoice_code": invoice.invoice_code,
+                "status": invoice.status,
+                "method": "Tien mat",
+                "collector": "Admin",
+            }
+        self.cbo_bill.blockSignals(True)
+        self.cbo_bill.clear()
+        self.cbo_bill.addItems(list(self.receivable_data.keys()))
+        self.cbo_bill.blockSignals(False)
+        self.update_receivable_info()
+
+    def load_payments(self):
+        if not self.context:
+            return
+        payments = self.context.payment_service.list_recent()
+        self.table.setRowCount(len(payments))
+        for row, payment in enumerate(payments):
+            values = [
+                payment.receipt_code,
+                payment.invoice_code,
+                f"{payment.paid_amount:,}".replace(",", "."),
+                payment.payment_method,
+                str(payment.collected_by_user_id),
+            ]
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(row, col, item)
+
+    def refresh_all(self):
+        self.load_receivables()
+        self.load_payments()
+
+    def confirm_payment(self):
+        data = self.receivable_data.get(self.cbo_bill.currentText())
+        if not data:
+            QMessageBox.warning(self, "Thiếu dữ liệu", "Không có hóa đơn cần thu.")
+            return
+        try:
+            payment = self.context.payment_service.create_payment(
+                PaymentCreateDTO(
+                    receipt_code="",
+                    invoice_code=data["invoice_code"],
+                    paid_amount=data["raw_amount"],
+                    payment_method=data["method"],
+                    payer_name="Khach hang",
+                    collected_by_user_id=self.current_user_id or 1,
+                    note="Ghi nhan tu man hinh thu tien.",
+                )
+            )
+            self.context.audit_log_service.record(
+                self.current_user_id,
+                "CREATE",
+                "payments",
+                payment.receipt_code,
+                "Ghi nhận giao dịch thu và cập nhật hóa đơn.",
+            )
+            self.refresh_all()
+        except Exception as exc:
+            QMessageBox.warning(self, "Không thể ghi nhận thu", str(exc))

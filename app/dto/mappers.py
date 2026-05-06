@@ -1,6 +1,14 @@
 from app.dto.requests import MeterReadingCreateDTO, TariffUpsertDTO
-from app.dto.responses import CustomerDTO, MeterReadingDTO, PaymentDTO, TariffConfigDTO, UserDTO
-from app.models import Customer, MeterReading, Payment, TariffConfig, UserAccount
+from app.dto.responses import (
+    CustomerDTO,
+    IncidentDTO,
+    InvoiceDTO,
+    MeterReadingDTO,
+    PaymentDTO,
+    TariffConfigDTO,
+    UserDTO,
+)
+from app.models import Customer, Incident, Invoice, MeterReading, Payment, TariffConfig, UserAccount
 
 
 def to_user_dto(user: UserAccount) -> UserDTO:
@@ -79,4 +87,27 @@ def to_payment_dto(payment: Payment) -> PaymentDTO:
         collected_by_user_id=payment.collected_by_user_id,
         note=payment.note,
         paid_at=payment.paid_at.isoformat(sep=" ", timespec="seconds") if payment.paid_at else "",
+    )
+
+
+def to_invoice_dto(invoice: Invoice) -> InvoiceDTO:
+    return InvoiceDTO(
+        id=invoice.id,
+        invoice_code=invoice.invoice_code,
+        customer_code=invoice.customer_code,
+        billing_period=invoice.billing_period,
+        amount=invoice.amount,
+        status=invoice.status.value,
+    )
+
+
+def to_incident_dto(incident: Incident) -> IncidentDTO:
+    return IncidentDTO(
+        id=incident.id,
+        customer_code=incident.customer_code,
+        incident_type=incident.incident_type,
+        priority=incident.priority,
+        description=incident.description,
+        status=incident.status.value,
+        received_date=incident.received_date.isoformat() if incident.received_date else "",
     )

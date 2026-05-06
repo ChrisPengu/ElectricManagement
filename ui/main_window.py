@@ -28,8 +28,10 @@ from ui.tariff import TariffForm
 
 
 class MainWindow(QWidget):
-    def __init__(self):
+    def __init__(self, context=None):
         super().__init__()
+        self.context = context
+        self.current_user_id = None
         self.display_name = "Quản trị viên"
         self.role = "Admin"
         self.menu_buttons = []
@@ -250,13 +252,13 @@ class MainWindow(QWidget):
         sidebar_layout.addSpacing(6)
 
         self.stack = QStackedWidget()
-        self.hodan = HoDanForm()
-        self.congto = CongToForm()
-        self.hoadon = HoaDonForm()
-        self.thanhtoan = ThanhToanForm()
-        self.suco = SuCoForm()
-        self.report = ReportForm()
-        self.tariff = TariffForm()
+        self.hodan = HoDanForm(self.context)
+        self.congto = CongToForm(self.context)
+        self.hoadon = HoaDonForm(self.context)
+        self.thanhtoan = ThanhToanForm(self.context)
+        self.suco = SuCoForm(self.context)
+        self.report = ReportForm(self.context)
+        self.tariff = TariffForm(self.context)
 
         self.page_meta = [
             {
@@ -423,10 +425,14 @@ class MainWindow(QWidget):
             btn.style().polish(btn)
             btn.update()
 
-    def set_user_info(self, display_name, role):
+    def set_user_info(self, user_id, display_name, role):
+        self.current_user_id = user_id
         self.display_name = display_name
         self.role = role
         self.user_info.setText(display_name)
         self.user_sub_info.setText(f"Vai trò: {role}")
         self.hello_text.setText(f"Xin chào, {display_name}")
         self.role_text.setText(f"Vai trò: {role}")
+        for form in [self.congto, self.hoadon, self.thanhtoan, self.suco]:
+            if hasattr(form, "set_current_user_id"):
+                form.set_current_user_id(user_id)

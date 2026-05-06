@@ -13,15 +13,24 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QDateEdit,
+    QMessageBox,
 )
 
+from app.dto.requests import MeterReadingCreateDTO
 from ui.common_styles import PAGE_STYLE
 
 
 class CongToForm(QWidget):
-    def __init__(self):
+    def __init__(self, context=None):
         super().__init__()
+        self.context = context
+        self.current_user_id = None
         self.build_ui()
+        self.load_customers()
+        self.load_readings()
+
+    def set_current_user_id(self, user_id):
+        self.current_user_id = user_id
 
     def build_ui(self):
         self.setStyleSheet(PAGE_STYLE)
@@ -109,17 +118,12 @@ class CongToForm(QWidget):
         lbl_note.setProperty("class", "fieldLabel")
 
         self.cbo_hodan = QComboBox()
-        self.cbo_hodan.addItems(
-            [
-                "HD001 - Nguyễn Văn A",
-                "HD002 - Trần Thị B",
-                "HD003 - Xưởng May Hòa Phát",
-            ]
-        )
+        self.cbo_hodan.currentTextChanged.connect(self.update_contract_view)
 
         self.cbo_contract = QComboBox()
-        self.cbo_contract.addItems(["Hộ gia đình", "Hộ gia đình", "Nhà máy"])
+        self.cbo_contract.addItems(["Hộ gia đình", "Nhà máy"])
         self.cbo_contract.setCurrentIndex(0)
+        self.cbo_contract.setEnabled(False)
 
         self.date_period = QDateEdit()
         self.date_period.setDate(QDate.currentDate())
@@ -160,12 +164,12 @@ class CongToForm(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
-        btn_save = QPushButton("Ghi nhận chỉ số")
-        btn_refresh = QPushButton("Làm mới")
-        btn_refresh.setProperty("variant", "secondary")
+        self.btn_save = QPushButton("Ghi nhận chỉ số")
+        self.btn_refresh = QPushButton("Làm mới")
+        self.btn_refresh.setProperty("variant", "secondary")
 
-        btn_row.addWidget(btn_save)
-        btn_row.addWidget(btn_refresh)
+        btn_row.addWidget(self.btn_save)
+        btn_row.addWidget(self.btn_refresh)
         btn_row.addStretch()
 
         input_layout.addWidget(input_title)
@@ -187,7 +191,7 @@ class CongToForm(QWidget):
         history_desc.setProperty("class", "sectionDesc")
         history_desc.setWordWrap(True)
 
-        self.table = QTableWidget(3, 5)
+        self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(
             ["Mã hộ", "Hộ/đơn vị dùng điện", "Loại hợp đồng", "Kỳ ghi", "Chỉ số mới"]
         )
@@ -198,17 +202,8 @@ class CongToForm(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setMinimumHeight(330)
 
-        demo = [
-            ["HD001", "Nguyễn Văn A", "Hộ gia đình", "04/2026", "1350"],
-            ["HD002", "Trần Thị B", "Hộ gia đình", "04/2026", "1105"],
-            ["HD003", "Xưởng May Hòa Phát", "Nhà máy", "04/2026", "8620"],
-        ]
-
-        for row_index, row_data in enumerate(demo):
-            for col_index, value in enumerate(row_data):
-                item = QTableWidgetItem(value)
-                item.setTextAlignment(Qt.AlignCenter)
-                self.table.setItem(row_index, col_index, item)
+        self.btn_save.clicked.connect(self.save_reading)
+        self.btn_refresh.clicked.connect(self.load_readings)
 
         history_layout.addWidget(history_title)
         history_layout.addWidget(history_desc)
@@ -219,3 +214,68 @@ class CongToForm(QWidget):
 
         root.addWidget(intro_card)
         root.addLayout(content_row, 1)
+
+    def load_customers(self):
+        if not self.context:
+            return
+        self.customers = self.context.customer_service.list_customers()
+        self.cbo_hodan.blockSignals(True)
+        self.cbo_hodan.clear()
+        for customer in self.customers:
+            self.cbo_hodan.addItem(f"{customer.customer_code} - {customer.owner_name}", customer)
+        self.cbo_hodan.blockSignals(False)
+        self.update_contract_view()
+
+    def update_contract_view(self):
+        customer = self.cbo_hodan.currentData()
+        if customer:
+            self.cbo_contract.setCurrentText(customer.contract_type)
+
+    def load_readings(self):
+        if not self.context:
+            return
+        readings = self.context.meter_reading_service.list_recent()
+        customers = {customer.customer_code: customer for customer in self.context.customer_service.list_customers()}
+        self.table.setRowCount(len(readings))
+        for row, reading in enumerate(readings):
+            customer = customers.get(reading.customer_code)
+            values = [
+                reading.customer_code,
+                customer.owner_name if customer else "",
+                customer.contract_type if customer else "",
+                reading.reading_period,
+                str(reading.new_index),
+            ]
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(row, col, item)
+
+    def save_reading(self):
+        customer = self.cbo_hodan.currentData()
+        if not customer:
+            QMessageBox.warning(self, "Thiếu dữ liệu", "Chưa có hộ dùng điện để ghi chỉ số.")
+            return
+        try:
+            new_index = int(self.txt_moi.text().strip())
+            self.context.meter_reading_service.create_reading(
+                MeterReadingCreateDTO(
+                    customer_code=customer.customer_code,
+                    reading_period=self.date_period.date().toString("MM/yyyy"),
+                    new_index=new_index,
+                    note=self.txt_note.text(),
+                ),
+                self.current_user_id,
+            )
+            self.context.audit_log_service.record(
+                self.current_user_id,
+                "CREATE",
+                "meter_readings",
+                customer.customer_code,
+                "Ghi nhận chỉ số công tơ.",
+            )
+            self.txt_moi.clear()
+            self.txt_note.clear()
+            self.load_readings()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Không thể ghi chỉ số", str(exc))
