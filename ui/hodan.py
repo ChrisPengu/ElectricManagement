@@ -221,6 +221,9 @@ class HoDanForm(QWidget):
                 item.setTextAlignment(Qt.AlignVCenter | Qt.AlignCenter)
                 self.table.setItem(row, col, item)
 
+    def refresh_data(self):
+        self.load_customers()
+
     def fill_form_from_selection(self):
         row = self.table.currentRow()
         if row < 0:

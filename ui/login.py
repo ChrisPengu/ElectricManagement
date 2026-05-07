@@ -258,7 +258,7 @@ class LoginForm(QWidget):
         card_layout.addWidget(subtitle)
         card_layout.addSpacing(30)
 
-        hint = QLabel("Tài khoản Admin demo: admin / admin123")
+        hint = QLabel("Nhóm 13 / Lớp: DCCNTT14.C.2")
         hint.setObjectName("loginHint")
         hint.setWordWrap(True)
         card_layout.addWidget(hint)

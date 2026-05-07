@@ -1,5 +1,4 @@
 import sys
-import os
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -12,9 +11,35 @@ from ui.login import LoginForm
 from ui.main_window import MainWindow
 
 
-os.environ.setdefault("DB_BACKEND", "mongodb")
-os.environ.setdefault("DB_MONGODB_URI", "mongodb://localhost:27017")
-os.environ.setdefault("DB_MONGODB_DATABASE", "ElectricManagementDemo")
+MESSAGE_BOX_STYLE = """
+    QMessageBox {
+        background-color: #ffffff;
+        color: #18324b;
+        font-family: "Segoe UI";
+        font-size: 13px;
+    }
+
+    QMessageBox QLabel {
+        background: transparent;
+        color: #18324b;
+        font-size: 13px;
+        min-width: 320px;
+    }
+
+    QMessageBox QPushButton {
+        background-color: #2f80ed;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 18px;
+        min-width: 72px;
+        font-weight: 700;
+    }
+
+    QMessageBox QPushButton:hover {
+        background-color: #246bca;
+    }
+"""
 
 
 class App(QStackedWidget):
@@ -92,6 +117,7 @@ class App(QStackedWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyleSheet(MESSAGE_BOX_STYLE)
     window = App()
     window.show()
     sys.exit(app.exec_())

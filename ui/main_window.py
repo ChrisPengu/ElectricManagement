@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QStackedWidget,
     QFrame,
+    QMessageBox,
 )
 
 from ui.hodan import HoDanForm
@@ -414,6 +415,11 @@ class MainWindow(QWidget):
         self.stack.setCurrentWidget(widget)
         self.header_title.setText(title)
         self.header_sub.setText(subtitle)
+        if hasattr(widget, "refresh_data"):
+            try:
+                widget.refresh_data()
+            except Exception as exc:
+                QMessageBox.warning(self, "Khong the tai du lieu", str(exc))
 
         for btn in self.menu_buttons:
             if btn == active_button:

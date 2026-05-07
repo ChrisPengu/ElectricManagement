@@ -331,6 +331,9 @@ class TariffForm(QWidget):
             self._loading_config = False
         self.refresh_contract_view()
 
+    def refresh_data(self):
+        self.load_contract_config()
+
     def save_config(self):
         if not self.context:
             return

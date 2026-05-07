@@ -36,3 +36,9 @@ class IncidentService:
 
     def update_status(self, incident_id: int, status: str) -> None:
         self.incident_repository.update_status(incident_id, IncidentStatus(status))
+
+    def update_status_description(self, incident_id: int, status: str, description: str) -> None:
+        description = description.strip()
+        if not description:
+            raise ValueError("Vui long nhap mo ta su co.")
+        self.incident_repository.update_status_description(incident_id, IncidentStatus(status), description)

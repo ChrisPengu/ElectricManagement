@@ -75,6 +75,23 @@ class IncidentRepository:
             (status.value, incident_id),
         )
 
+    def update_status_description(self, incident_id: int, status: IncidentStatus, description: str) -> None:
+        if self.db.backend == "mongodb":
+            self.db.mongo_collection("incidents").update_one(
+                {"id": incident_id},
+                {"$set": {"status": status.value, "description": description}},
+            )
+            return
+
+        self.db.execute(
+            """
+            UPDATE incidents
+            SET status = ?, description = ?
+            WHERE id = ?
+            """,
+            (status.value, description, incident_id),
+        )
+
     def _to_model(self, row: dict) -> Incident:
         received_date = row["received_date"]
         if isinstance(received_date, str):

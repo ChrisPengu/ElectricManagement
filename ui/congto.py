@@ -142,25 +142,6 @@ class CongToForm(QWidget):
         form.addRow(lbl_new, self.txt_moi)
         form.addRow(lbl_note, self.txt_note)
 
-        notice_card = QFrame()
-        notice_card.setProperty("class", "softCard")
-        notice_layout = QVBoxLayout(notice_card)
-        notice_layout.setContentsMargins(16, 16, 16, 16)
-        notice_layout.setSpacing(6)
-
-        notice_badge = QLabel("Luồng nhập mới")
-        notice_badge.setProperty("class", "infoPill")
-
-        notice_desc = QLabel(
-            "Chỉ số cũ đã được loại bỏ khỏi màn hình này. Khi tích hợp database, hệ thống sẽ tự truy xuất chỉ số kỳ trước "
-            "để tính ra sản lượng tiêu thụ và phục vụ bước lập hóa đơn."
-        )
-        notice_desc.setProperty("class", "sectionDesc")
-        notice_desc.setWordWrap(True)
-
-        notice_layout.addWidget(notice_badge)
-        notice_layout.addWidget(notice_desc)
-
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
@@ -175,7 +156,6 @@ class CongToForm(QWidget):
         input_layout.addWidget(input_title)
         input_layout.addWidget(input_desc)
         input_layout.addLayout(form)
-        input_layout.addWidget(notice_card)
         input_layout.addLayout(btn_row)
 
         history_card = QFrame()
@@ -203,7 +183,7 @@ class CongToForm(QWidget):
         self.table.setMinimumHeight(330)
 
         self.btn_save.clicked.connect(self.save_reading)
-        self.btn_refresh.clicked.connect(self.load_readings)
+        self.btn_refresh.clicked.connect(self.refresh_data)
 
         history_layout.addWidget(history_title)
         history_layout.addWidget(history_desc)
@@ -250,6 +230,10 @@ class CongToForm(QWidget):
                 item = QTableWidgetItem(value)
                 item.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(row, col, item)
+
+    def refresh_data(self):
+        self.load_customers()
+        self.load_readings()
 
     def save_reading(self):
         customer = self.cbo_hodan.currentData()

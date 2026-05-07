@@ -1,6 +1,7 @@
 import sqlite3
 import hashlib
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
@@ -131,7 +132,10 @@ class DatabaseManager:
 
     def _connect_mongodb(self):
         pymongo = self._import_pymongo()
-        self._mongodb_client = pymongo.MongoClient(self.settings.mongodb_uri, serverSelectionTimeoutMS=3000)
+        self._mongodb_client = pymongo.MongoClient(
+            self.settings.mongodb_uri,
+            serverSelectionTimeoutMS=self.settings.mongodb_server_selection_timeout_ms,
+        )
         self._mongodb_client.admin.command("ping")
         return self._mongodb_client[self.settings.mongodb_database]
 
@@ -578,21 +582,168 @@ class DatabaseManager:
             ("Nhà máy", 150000, 8.0, 1.35, 2450, "Biểu giá sản xuất theo khung giờ và hệ số cao điểm."),
         ]
         for contract_type, fixed_fee, vat_percent, peak_multiplier, base_rate, formula_note in tariff_rows:
-            db.tariff_configs.update_one(
+            self._mongodb_upsert_with_id(
+                "tariff_configs",
                 {"contract_type": contract_type},
                 {
-                    "$setOnInsert": {
-                        "id": self.next_sequence("tariff_configs"),
-                        "contract_type": contract_type,
-                        "fixed_fee": fixed_fee,
-                        "vat_percent": vat_percent,
-                        "peak_multiplier": peak_multiplier,
-                        "base_rate": base_rate,
-                        "formula_note": formula_note,
-                        "updated_at": __import__("datetime").datetime.now(),
-                    }
+                    "contract_type": contract_type,
+                    "fixed_fee": fixed_fee,
+                    "vat_percent": vat_percent,
+                    "peak_multiplier": peak_multiplier,
+                    "base_rate": base_rate,
+                    "formula_note": formula_note,
+                    "updated_at": datetime.now(),
                 },
-                upsert=True,
+            )
+
+        self._seed_mongodb_sample_data()
+
+    def _mongodb_upsert_with_id(self, collection_name: str, key: dict[str, Any], payload: dict[str, Any]) -> None:
+        collection = self.mongo_collection(collection_name)
+        if collection.find_one(key, {"_id": 1}) is not None:
+            return
+        document = {"id": self.next_sequence(collection_name), **payload}
+        collection.insert_one(document)
+
+    def _seed_mongodb_sample_data(self) -> None:
+        now = datetime.now()
+
+        customers = [
+            ("HD004", "Phạm Minh Tuấn", "Khu A - Tổ 4, Nhà 12", "0904444444", "Hộ gia đình"),
+            ("HD005", "Lê Thu Hà", "Khu A - Tổ 5, Nhà 08", "0905555555", "Hộ gia đình"),
+            ("HD006", "Đặng Quốc Huy", "Khu C - Tổ 1, Nhà 21", "0906666666", "Hộ gia đình"),
+            ("HD007", "Cửa hàng Tạp hóa Minh Anh", "Khu C - Dãy ki-ốt 03", "0907777777", "Hộ gia đình"),
+            ("HD008", "Công ty TNHH Cơ khí An Phú", "Khu B - Cụm CN 2", "0908888888", "Nhà máy"),
+            ("HD009", "Xưởng Gỗ Gia Hưng", "Khu B - Cụm CN 3", "0909999999", "Nhà máy"),
+        ]
+        for customer_code, owner_name, address, phone_number, contract_type in customers:
+            self._mongodb_upsert_with_id(
+                "customers",
+                {"customer_code": customer_code},
+                {
+                    "customer_code": customer_code,
+                    "owner_name": owner_name,
+                    "address": address,
+                    "phone_number": phone_number,
+                    "contract_type": contract_type,
+                },
+            )
+
+        readings = [
+            ("HD001", "01/2026", 1180), ("HD001", "02/2026", 1325), ("HD001", "03/2026", 1472), ("HD001", "04/2026", 1615),
+            ("HD002", "01/2026", 940), ("HD002", "02/2026", 1058), ("HD002", "03/2026", 1182), ("HD002", "04/2026", 1306),
+            ("HD004", "01/2026", 520), ("HD004", "02/2026", 638), ("HD004", "03/2026", 781), ("HD004", "04/2026", 925),
+            ("HD005", "01/2026", 760), ("HD005", "02/2026", 852), ("HD005", "03/2026", 951), ("HD005", "04/2026", 1056),
+            ("HD006", "01/2026", 410), ("HD006", "02/2026", 506), ("HD006", "03/2026", 612), ("HD006", "04/2026", 735),
+            ("HD007", "01/2026", 1280), ("HD007", "02/2026", 1515), ("HD007", "03/2026", 1782), ("HD007", "04/2026", 2054),
+            ("HD008", "01/2026", 18400), ("HD008", "02/2026", 20780), ("HD008", "03/2026", 23240), ("HD008", "04/2026", 25810),
+            ("HD009", "01/2026", 9650), ("HD009", "02/2026", 11140), ("HD009", "03/2026", 12680), ("HD009", "04/2026", 14390),
+        ]
+        for customer_code, period, new_index in readings:
+            self._mongodb_upsert_with_id(
+                "meter_readings",
+                {"customer_code": customer_code, "reading_period": period},
+                {
+                    "customer_code": customer_code,
+                    "reading_period": period,
+                    "new_index": new_index,
+                    "note": "Ghi định kỳ từ đội vận hành",
+                    "recorded_by_user_id": 1,
+                    "created_at": now,
+                },
+            )
+
+        invoices = [
+            ("HDON-HD001-022026", "HD001", "02/2026", 145, 35000, 355_880, "Đã thanh toán"),
+            ("HDON-HD002-022026", "HD002", "02/2026", 118, 35000, 289_960, "Đã thanh toán"),
+            ("HDON-HD004-032026", "HD004", "03/2026", 143, 35000, 351_060, "Đã thanh toán"),
+            ("HDON-HD005-032026", "HD005", "03/2026", 99, 35000, 246_980, "Chưa thanh toán"),
+            ("HDON-HD006-042026", "HD006", "04/2026", 123, 35000, 301_340, "Chưa thanh toán"),
+            ("HDON-HD007-042026", "HD007", "04/2026", 272, 35000, 710_380, "Chưa thanh toán"),
+            ("HDON-HD008-032026", "HD008", "03/2026", 2460, 150000, 8_979_660, "Đã thanh toán"),
+            ("HDON-HD008-042026", "HD008", "04/2026", 2570, 150000, 9_364_950, "Chưa thanh toán"),
+            ("HDON-HD009-042026", "HD009", "04/2026", 1710, 150000, 6_360_930, "Chưa thanh toán"),
+        ]
+        for invoice_code, customer_code, period, consumption, fixed_fee, amount, status in invoices:
+            vat_amount = int(amount * 8 / 108)
+            self._mongodb_upsert_with_id(
+                "invoices",
+                {"invoice_code": invoice_code},
+                {
+                    "invoice_code": invoice_code,
+                    "customer_code": customer_code,
+                    "billing_period": period,
+                    "consumption_kwh": consumption,
+                    "fixed_fee": fixed_fee,
+                    "vat_amount": vat_amount,
+                    "amount": amount,
+                    "status": status,
+                    "issued_by_user_id": 1,
+                    "issued_at": now,
+                },
+            )
+
+        payments = [
+            ("BN-HDON-HD001-022026", "HDON-HD001-022026", 355_880, "Tien mat", "Nguyễn Văn A"),
+            ("BN-HDON-HD002-022026", "HDON-HD002-022026", 289_960, "Chuyen khoan", "Trần Thị B"),
+            ("BN-HDON-HD004-032026", "HDON-HD004-032026", 351_060, "Tien mat", "Phạm Minh Tuấn"),
+            ("BN-HDON-HD008-032026", "HDON-HD008-032026", 8_979_660, "Chuyen khoan", "Công ty TNHH Cơ khí An Phú"),
+        ]
+        for receipt_code, invoice_code, paid_amount, method, payer_name in payments:
+            self._mongodb_upsert_with_id(
+                "payments",
+                {"receipt_code": receipt_code},
+                {
+                    "receipt_code": receipt_code,
+                    "invoice_code": invoice_code,
+                    "paid_amount": paid_amount,
+                    "payment_method": method,
+                    "payer_name": payer_name,
+                    "collected_by_user_id": 1,
+                    "note": "Thu tiền điện theo kỳ hóa đơn",
+                    "paid_at": now,
+                },
+            )
+
+        incidents = [
+            ("HD004", "Mất điện", "Cao", "Mất điện cục bộ sau mưa lớn, cần kiểm tra aptomat tổng.", "Đang xử lý", "2026-04-18"),
+            ("HD005", "Hỏng công tơ", "Trung bình", "Công tơ hiển thị chập chờn, khách hàng yêu cầu kiểm định.", "Đã tiếp nhận", "2026-04-20"),
+            ("HD008", "Quá tải đường dây", "Khẩn cấp", "Dây cấp vào xưởng nóng bất thường vào giờ cao điểm.", "Đang xử lý", "2026-04-22"),
+            ("HD009", "Chập điện", "Cao", "Tủ điện khu xưởng phát tia lửa, đã cô lập khu vực.", "Hoàn thành", "2026-04-10"),
+        ]
+        for customer_code, incident_type, priority, description, status, received_date in incidents:
+            self._mongodb_upsert_with_id(
+                "incidents",
+                {"customer_code": customer_code, "incident_type": incident_type, "received_date": received_date},
+                {
+                    "customer_code": customer_code,
+                    "incident_type": incident_type,
+                    "priority": priority,
+                    "description": description,
+                    "status": status,
+                    "received_by_user_id": 1,
+                    "received_date": received_date,
+                },
+            )
+
+        audit_logs = [
+            ("CREATE", "customers", "HD004", "Thêm hồ sơ hộ dân Phạm Minh Tuấn"),
+            ("CREATE", "meter_readings", "04/2026", "Ghi chỉ số công tơ định kỳ tháng 04/2026"),
+            ("CREATE", "invoices", "HDON-HD008-042026", "Lập hóa đơn nhà máy kỳ 04/2026"),
+            ("CREATE", "payments", "BN-HDON-HD008-032026", "Ghi nhận thanh toán chuyển khoản"),
+        ]
+        for action, entity_name, entity_key, description in audit_logs:
+            self._mongodb_upsert_with_id(
+                "audit_logs",
+                {"action": action, "entity_name": entity_name, "entity_key": entity_key},
+                {
+                    "user_id": 1,
+                    "action": action,
+                    "entity_name": entity_name,
+                    "entity_key": entity_key,
+                    "description": description,
+                    "created_at": now,
+                },
             )
 
     def _seed_sqlite(self, cursor) -> None:
