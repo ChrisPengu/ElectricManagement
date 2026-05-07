@@ -1,9 +1,20 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QStackedWidget, QMessageBox
+import os
+import traceback
+from datetime import datetime
+from pathlib import Path
+
+from PyQt5.QtWidgets import QApplication, QMessageBox, QStackedWidget
+
 from app.dto.requests import LoginRequestDTO
 from app.services.app_context import AppContext
 from ui.login import LoginForm
 from ui.main_window import MainWindow
+
+
+os.environ.setdefault("DB_BACKEND", "mongodb")
+os.environ.setdefault("DB_MONGODB_URI", "mongodb://localhost:27017")
+os.environ.setdefault("DB_MONGODB_DATABASE", "ElectricManagementDemo")
 
 
 class App(QStackedWidget):
@@ -11,7 +22,7 @@ class App(QStackedWidget):
         super().__init__()
         self.context = AppContext()
 
-        self.setWindowTitle("Phần mềm quản lý dịch vụ cung cấp điện tại khu dân cư")
+        self.setWindowTitle("Electric Management")
         self.resize(1365, 768)
         self.setMinimumSize(1100, 680)
 
@@ -29,31 +40,50 @@ class App(QStackedWidget):
         self.main_window.btn_logout.clicked.connect(self.handle_logout)
 
     def handle_login(self):
-        username = self.login.input_username.text().strip()
-        password = self.login.input_password.text().strip()
-        account = self.context.auth_service.authenticate(LoginRequestDTO(username=username, password=password))
-        if account:
-            self.main_window.set_user_info(
-                user_id=account.id,
-                display_name=account.display_name,
-                role=account.role
-            )
-            self.setCurrentWidget(self.main_window)
-            self.login.clear_inputs()
-        else:
+        try:
+            username = self.login.input_username.text().strip()
+            password = self.login.input_password.text().strip()
+            account = self.context.auth_service.authenticate(LoginRequestDTO(username=username, password=password))
+            if account:
+                self.main_window.set_user_info(
+                    user_id=account.id,
+                    display_name=account.display_name,
+                    role=account.role,
+                )
+                self.setCurrentWidget(self.main_window)
+                self.login.clear_inputs()
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Dang nhap that bai",
+                    "Ten dang nhap, mat khau khong dung hoac tai khoan khong co quyen Admin.",
+                )
+        except Exception as exc:
+            self.write_error_log(exc)
             QMessageBox.warning(
                 self,
-                "Đăng nhập thất bại",
-                "Tên đăng nhập, mật khẩu không đúng hoặc tài khoản không có quyền Admin."
+                "Khong the dang nhap",
+                f"Ung dung gap loi khi mo man hinh chinh.\n"
+                f"Chi tiet da ghi vao data/app_error.log\n\n{exc}",
             )
+
+    def write_error_log(self, exc):
+        log_dir = Path(__file__).resolve().parent / "data"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "app_error.log"
+        log_file.write_text(
+            f"[{datetime.now().isoformat(sep=' ', timespec='seconds')}] {exc}\n"
+            f"{traceback.format_exc()}\n",
+            encoding="utf-8",
+        )
 
     def handle_logout(self):
         reply = QMessageBox.question(
             self,
-            "Xác nhận đăng xuất",
-            "Bạn có chắc muốn đăng xuất không?",
+            "Xac nhan dang xuat",
+            "Ban co chac muon dang xuat khong?",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
@@ -64,4 +94,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = App()
     window.show()
-    sys.exit(app.exec_())    
+    sys.exit(app.exec_())

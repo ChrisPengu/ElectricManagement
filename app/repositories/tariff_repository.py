@@ -9,6 +9,10 @@ class TariffRepository:
         self.db = db
 
     def get_by_contract_type(self, contract_type: ContractType) -> TariffConfig | None:
+        if self.db.backend == "mongodb":
+            row = self.db.mongo_collection("tariff_configs").find_one({"contract_type": contract_type.value})
+            return self._to_model(row) if row else None
+
         row = self.db.fetch_one(
             """
             SELECT id, contract_type, fixed_fee, vat_percent, peak_multiplier, base_rate, formula_note, updated_at
@@ -21,22 +25,29 @@ class TariffRepository:
         if row is None:
             return None
 
-        updated_at = row["updated_at"]
-        if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at)
-
-        return TariffConfig(
-            id=row["id"],
-            contract_type=ContractType(row["contract_type"]),
-            fixed_fee=row["fixed_fee"],
-            vat_percent=row["vat_percent"],
-            peak_multiplier=row["peak_multiplier"],
-            base_rate=row["base_rate"],
-            formula_note=row["formula_note"],
-            updated_at=updated_at,
-        )
+        return self._to_model(row)
 
     def save(self, config: TariffConfig) -> TariffConfig:
+        if self.db.backend == "mongodb":
+            existing = self.get_by_contract_type(config.contract_type)
+            payload = {
+                "contract_type": config.contract_type.value,
+                "fixed_fee": config.fixed_fee,
+                "vat_percent": config.vat_percent,
+                "peak_multiplier": config.peak_multiplier,
+                "base_rate": config.base_rate,
+                "formula_note": config.formula_note,
+                "updated_at": config.updated_at,
+            }
+            if existing is None:
+                payload["id"] = self.db.next_sequence("tariff_configs")
+            self.db.mongo_collection("tariff_configs").update_one(
+                {"contract_type": config.contract_type.value},
+                {"$set": payload},
+                upsert=True,
+            )
+            return self.get_by_contract_type(config.contract_type) or config
+
         if self.db.backend == "sqlserver":
             self.db.execute(
                 """
@@ -109,3 +120,18 @@ class TariffRepository:
             )
 
         return self.get_by_contract_type(config.contract_type) or config
+
+    def _to_model(self, row: dict) -> TariffConfig:
+        updated_at = row["updated_at"]
+        if isinstance(updated_at, str):
+            updated_at = datetime.fromisoformat(updated_at)
+        return TariffConfig(
+            id=row.get("id"),
+            contract_type=ContractType(row["contract_type"]),
+            fixed_fee=row["fixed_fee"],
+            vat_percent=row["vat_percent"],
+            peak_multiplier=row["peak_multiplier"],
+            base_rate=row["base_rate"],
+            formula_note=row["formula_note"],
+            updated_at=updated_at,
+        )

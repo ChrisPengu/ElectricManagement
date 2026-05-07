@@ -9,6 +9,10 @@ class MeterReadingRepository:
         self.db = db
 
     def list_recent(self, limit: int = 50) -> list[MeterReading]:
+        if self.db.backend == "mongodb":
+            rows = self.db.mongo_collection("meter_readings").find({}, sort=[("id", -1)], limit=limit)
+            return [self._to_model(row) for row in rows]
+
         if self.db.backend == "sqlserver":
             rows = self.db.fetch_all(
                 """
@@ -31,6 +35,13 @@ class MeterReadingRepository:
         return [self._to_model(row) for row in rows]
 
     def get_latest_for_customer(self, customer_code: str) -> MeterReading | None:
+        if self.db.backend == "mongodb":
+            row = self.db.mongo_collection("meter_readings").find_one(
+                {"customer_code": customer_code},
+                sort=[("id", -1)],
+            )
+            return self._to_model(row) if row else None
+
         if self.db.backend == "sqlserver":
             query = """
                 SELECT TOP 1 id, customer_code, reading_period, new_index, note, created_at
@@ -52,6 +63,13 @@ class MeterReadingRepository:
     def get_previous_for_reading(self, reading: MeterReading) -> MeterReading | None:
         if reading.id is None:
             return None
+        if self.db.backend == "mongodb":
+            row = self.db.mongo_collection("meter_readings").find_one(
+                {"customer_code": reading.customer_code, "id": {"$lt": reading.id}},
+                sort=[("id", -1)],
+            )
+            return self._to_model(row) if row else None
+
         if self.db.backend == "sqlserver":
             query = """
                 SELECT TOP 1 id, customer_code, reading_period, new_index, note, created_at
@@ -71,6 +89,12 @@ class MeterReadingRepository:
         return self._to_model(row) if row else None
 
     def get_for_customer_period(self, customer_code: str, reading_period: str) -> MeterReading | None:
+        if self.db.backend == "mongodb":
+            row = self.db.mongo_collection("meter_readings").find_one(
+                {"customer_code": customer_code, "reading_period": reading_period}
+            )
+            return self._to_model(row) if row else None
+
         row = self.db.fetch_one(
             """
             SELECT id, customer_code, reading_period, new_index, note, created_at
@@ -82,6 +106,21 @@ class MeterReadingRepository:
         return self._to_model(row) if row else None
 
     def create(self, reading: MeterReading, recorded_by_user_id: int | None = None) -> MeterReading:
+        if self.db.backend == "mongodb":
+            now = datetime.now()
+            self.db.mongo_collection("meter_readings").insert_one(
+                {
+                    "id": self.db.next_sequence("meter_readings"),
+                    "customer_code": reading.customer_code,
+                    "reading_period": reading.reading_period,
+                    "new_index": reading.new_index,
+                    "note": reading.note,
+                    "recorded_by_user_id": recorded_by_user_id,
+                    "created_at": now,
+                }
+            )
+            return self.get_for_customer_period(reading.customer_code, reading.reading_period) or reading
+
         if self.db.has_column("meter_readings", "recorded_by_user_id"):
             self.db.execute(
                 """

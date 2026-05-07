@@ -13,6 +13,8 @@ class DatabaseManager:
         self.backend = self.settings.backend
         self.db_path = self.settings.sqlite_path
         self._sqlserver_module = None
+        self._mongodb_client = None
+        self._mongodb_database = None
 
         if self.backend == "sqlite":
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -20,6 +22,8 @@ class DatabaseManager:
     def connect(self):
         if self.backend == "sqlserver":
             return self._connect_sqlserver()
+        if self.backend == "mongodb":
+            return self.mongo_database
         return self._connect_sqlite()
 
     @contextmanager
@@ -31,6 +35,8 @@ class DatabaseManager:
             connection.close()
 
     def fetch_one(self, query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
+        if self.backend == "mongodb":
+            raise RuntimeError("MongoDB backend uses repository collection APIs, not SQL fetch_one.")
         with self.session() as connection:
             cursor = connection.cursor()
             cursor.execute(query, params)
@@ -40,6 +46,8 @@ class DatabaseManager:
             return self._row_to_dict(cursor, row)
 
     def fetch_all(self, query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+        if self.backend == "mongodb":
+            raise RuntimeError("MongoDB backend uses repository collection APIs, not SQL fetch_all.")
         with self.session() as connection:
             cursor = connection.cursor()
             cursor.execute(query, params)
@@ -47,18 +55,24 @@ class DatabaseManager:
             return [self._row_to_dict(cursor, row) for row in rows]
 
     def execute(self, query: str, params: tuple[Any, ...] = ()) -> None:
+        if self.backend == "mongodb":
+            raise RuntimeError("MongoDB backend uses repository collection APIs, not SQL execute.")
         with self.session() as connection:
             cursor = connection.cursor()
             cursor.execute(query, params)
             connection.commit()
 
     def executemany(self, query: str, params_list: Iterable[tuple[Any, ...]]) -> None:
+        if self.backend == "mongodb":
+            raise RuntimeError("MongoDB backend uses repository collection APIs, not SQL executemany.")
         with self.session() as connection:
             cursor = connection.cursor()
             cursor.executemany(query, list(params_list))
             connection.commit()
 
     def has_column(self, table_name: str, column_name: str) -> bool:
+        if self.backend == "mongodb":
+            return True
         if self.backend == "sqlserver":
             row = self.fetch_one(
                 """
@@ -74,6 +88,9 @@ class DatabaseManager:
         return any(row["name"] == column_name for row in rows)
 
     def initialize(self) -> None:
+        if self.backend == "mongodb":
+            self._initialize_mongodb()
+            return
         try:
             with self.session() as connection:
                 cursor = connection.cursor()
@@ -93,6 +110,45 @@ class DatabaseManager:
         connection = sqlite3.connect(self.db_path)
         connection.row_factory = sqlite3.Row
         return connection
+
+    @property
+    def mongo_database(self):
+        if self._mongodb_database is None:
+            self._mongodb_database = self._connect_mongodb()
+        return self._mongodb_database
+
+    def mongo_collection(self, name: str):
+        return self.mongo_database[name]
+
+    def next_sequence(self, name: str) -> int:
+        result = self.mongo_collection("counters").find_one_and_update(
+            {"_id": name},
+            {"$inc": {"value": 1}},
+            upsert=True,
+            return_document=self._mongo_return_document().AFTER,
+        )
+        return int(result["value"])
+
+    def _connect_mongodb(self):
+        pymongo = self._import_pymongo()
+        self._mongodb_client = pymongo.MongoClient(self.settings.mongodb_uri, serverSelectionTimeoutMS=3000)
+        self._mongodb_client.admin.command("ping")
+        return self._mongodb_client[self.settings.mongodb_database]
+
+    def _import_pymongo(self):
+        try:
+            import pymongo  # type: ignore
+        except ImportError as exc:
+            raise RuntimeError(
+                "MongoDB backend requires `pymongo`. "
+                "Install it with `venv\\Scripts\\python.exe -m pip install pymongo`, "
+                "or set DB_BACKEND=sqlite."
+            ) from exc
+        return pymongo
+
+    def _mongo_return_document(self):
+        pymongo = self._import_pymongo()
+        return pymongo.ReturnDocument
 
     def _connect_sqlserver(self):
         pyodbc = self._import_pyodbc()
@@ -473,6 +529,71 @@ class DatabaseManager:
             self._seed_sqlserver(cursor)
         else:
             self._seed_sqlite(cursor)
+
+    def _initialize_mongodb(self) -> None:
+        db = self.mongo_database
+        db.users.create_index("username", unique=True)
+        db.customers.create_index("customer_code", unique=True)
+        db.tariff_configs.create_index("contract_type", unique=True)
+        db.meter_readings.create_index([("customer_code", 1), ("reading_period", 1)], unique=True)
+        db.invoices.create_index("invoice_code", unique=True)
+        db.invoices.create_index([("customer_code", 1), ("billing_period", 1)], unique=True)
+        db.payments.create_index("receipt_code", unique=True)
+
+        if db.users.count_documents({"username": "admin"}) == 0:
+            db.users.insert_one(
+                {
+                    "id": self.next_sequence("users"),
+                    "username": "admin",
+                    "password": self._hash_password("admin123"),
+                    "role": "Admin",
+                    "display_name": "Quản trị viên",
+                    "is_active": True,
+                }
+            )
+
+        customer_rows = [
+            ("HD001", "Nguyễn Văn A", "Khu A - Tổ 1", "0901111111", "Hộ gia đình"),
+            ("HD002", "Trần Thị B", "Khu A - Tổ 2", "0902222222", "Hộ gia đình"),
+            ("HD003", "Xưởng May Hòa Phát", "Khu B - Cụm CN 1", "0903333333", "Nhà máy"),
+        ]
+        for customer_code, owner_name, address, phone_number, contract_type in customer_rows:
+            db.customers.update_one(
+                {"customer_code": customer_code},
+                {
+                    "$setOnInsert": {
+                        "id": self.next_sequence("customers"),
+                        "customer_code": customer_code,
+                        "owner_name": owner_name,
+                        "address": address,
+                        "phone_number": phone_number,
+                        "contract_type": contract_type,
+                    }
+                },
+                upsert=True,
+            )
+
+        tariff_rows = [
+            ("Hộ gia đình", 35000, 8.0, 1.0, 1806, "Biểu giá lũy tiến theo sản lượng tiêu thụ."),
+            ("Nhà máy", 150000, 8.0, 1.35, 2450, "Biểu giá sản xuất theo khung giờ và hệ số cao điểm."),
+        ]
+        for contract_type, fixed_fee, vat_percent, peak_multiplier, base_rate, formula_note in tariff_rows:
+            db.tariff_configs.update_one(
+                {"contract_type": contract_type},
+                {
+                    "$setOnInsert": {
+                        "id": self.next_sequence("tariff_configs"),
+                        "contract_type": contract_type,
+                        "fixed_fee": fixed_fee,
+                        "vat_percent": vat_percent,
+                        "peak_multiplier": peak_multiplier,
+                        "base_rate": base_rate,
+                        "formula_note": formula_note,
+                        "updated_at": __import__("datetime").datetime.now(),
+                    }
+                },
+                upsert=True,
+            )
 
     def _seed_sqlite(self, cursor) -> None:
         cursor.execute(

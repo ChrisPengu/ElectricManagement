@@ -7,6 +7,8 @@ from pathlib import Path
 class DatabaseSettings:
     backend: str
     sqlite_path: Path
+    mongodb_uri: str
+    mongodb_database: str
     sqlserver_host: str
     sqlserver_port: int
     sqlserver_database: str
@@ -26,6 +28,8 @@ class DatabaseSettings:
         return cls(
             backend=os.getenv("DB_BACKEND", "sqlite").strip().lower(),
             sqlite_path=Path(os.getenv("DB_SQLITE_PATH", data_dir / "electric_management.db")),
+            mongodb_uri=os.getenv("DB_MONGODB_URI", "mongodb://localhost:27017").strip(),
+            mongodb_database=os.getenv("DB_MONGODB_DATABASE", "ElectricManagementDemo").strip(),
             sqlserver_host=os.getenv("DB_SQLSERVER_HOST", "localhost").strip(),
             sqlserver_port=int(os.getenv("DB_SQLSERVER_PORT", "1433")),
             sqlserver_database=os.getenv("DB_SQLSERVER_DATABASE", "ElectricManagement").strip(),

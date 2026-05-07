@@ -9,6 +9,10 @@ class IncidentRepository:
         self.db = db
 
     def list_all(self) -> list[Incident]:
+        if self.db.backend == "mongodb":
+            rows = self.db.mongo_collection("incidents").find({}, sort=[("id", -1)])
+            return [self._to_model(row) for row in rows]
+
         rows = self.db.fetch_all(
             """
             SELECT id, customer_code, incident_type, priority, description, status, received_date
@@ -19,6 +23,21 @@ class IncidentRepository:
         return [self._to_model(row) for row in rows]
 
     def create(self, incident: Incident, received_by_user_id: int | None = None) -> Incident:
+        if self.db.backend == "mongodb":
+            self.db.mongo_collection("incidents").insert_one(
+                {
+                    "id": self.db.next_sequence("incidents"),
+                    "customer_code": incident.customer_code,
+                    "incident_type": incident.incident_type,
+                    "priority": incident.priority,
+                    "description": incident.description,
+                    "status": incident.status.value,
+                    "received_by_user_id": received_by_user_id,
+                    "received_date": incident.received_date.isoformat() if incident.received_date else None,
+                }
+            )
+            return self.list_all()[0]
+
         self.db.execute(
             """
             INSERT INTO incidents (
@@ -40,6 +59,13 @@ class IncidentRepository:
         return self.list_all()[0]
 
     def update_status(self, incident_id: int, status: IncidentStatus) -> None:
+        if self.db.backend == "mongodb":
+            self.db.mongo_collection("incidents").update_one(
+                {"id": incident_id},
+                {"$set": {"status": status.value}},
+            )
+            return
+
         self.db.execute(
             """
             UPDATE incidents
@@ -54,7 +80,7 @@ class IncidentRepository:
         if isinstance(received_date, str):
             received_date = date.fromisoformat(received_date)
         return Incident(
-            id=row["id"],
+            id=row.get("id"),
             customer_code=row["customer_code"],
             incident_type=row["incident_type"],
             priority=row["priority"],

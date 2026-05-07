@@ -7,6 +7,10 @@ class InvoiceRepository:
         self.db = db
 
     def list_all(self) -> list[Invoice]:
+        if self.db.backend == "mongodb":
+            rows = self.db.mongo_collection("invoices").find({}, sort=[("id", -1)])
+            return [self._to_model(row) for row in rows]
+
         rows = self.db.fetch_all(
             """
             SELECT id, invoice_code, customer_code, billing_period, amount, status
@@ -17,6 +21,13 @@ class InvoiceRepository:
         return [self._to_model(row) for row in rows]
 
     def list_unpaid(self) -> list[Invoice]:
+        if self.db.backend == "mongodb":
+            rows = self.db.mongo_collection("invoices").find(
+                {"status": {"$ne": InvoiceStatus.PAID.value}},
+                sort=[("id", -1)],
+            )
+            return [self._to_model(row) for row in rows]
+
         rows = self.db.fetch_all(
             """
             SELECT id, invoice_code, customer_code, billing_period, amount, status
@@ -29,6 +40,10 @@ class InvoiceRepository:
         return [self._to_model(row) for row in rows]
 
     def get_by_code(self, invoice_code: str) -> Invoice | None:
+        if self.db.backend == "mongodb":
+            row = self.db.mongo_collection("invoices").find_one({"invoice_code": invoice_code})
+            return self._to_model(row) if row else None
+
         row = self.db.fetch_one(
             """
             SELECT id, invoice_code, customer_code, billing_period, amount, status
@@ -40,6 +55,12 @@ class InvoiceRepository:
         return self._to_model(row) if row else None
 
     def exists_for_customer_period(self, customer_code: str, billing_period: str) -> bool:
+        if self.db.backend == "mongodb":
+            return self.db.mongo_collection("invoices").count_documents(
+                {"customer_code": customer_code, "billing_period": billing_period},
+                limit=1,
+            ) > 0
+
         row = self.db.fetch_one(
             """
             SELECT id
@@ -58,6 +79,23 @@ class InvoiceRepository:
         vat_amount: int = 0,
         issued_by_user_id: int | None = None,
     ) -> Invoice:
+        if self.db.backend == "mongodb":
+            self.db.mongo_collection("invoices").insert_one(
+                {
+                    "id": self.db.next_sequence("invoices"),
+                    "invoice_code": invoice.invoice_code,
+                    "customer_code": invoice.customer_code,
+                    "billing_period": invoice.billing_period,
+                    "consumption_kwh": consumption_kwh,
+                    "fixed_fee": fixed_fee,
+                    "vat_amount": vat_amount,
+                    "amount": invoice.amount,
+                    "status": invoice.status.value,
+                    "issued_by_user_id": issued_by_user_id,
+                }
+            )
+            return self.get_by_code(invoice.invoice_code) or invoice
+
         if self.db.has_column("invoices", "consumption_kwh"):
             self.db.execute(
                 """
@@ -96,6 +134,13 @@ class InvoiceRepository:
         return self.get_by_code(invoice.invoice_code) or invoice
 
     def mark_paid(self, invoice_code: str) -> None:
+        if self.db.backend == "mongodb":
+            self.db.mongo_collection("invoices").update_one(
+                {"invoice_code": invoice_code},
+                {"$set": {"status": InvoiceStatus.PAID.value}},
+            )
+            return
+
         self.db.execute(
             """
             UPDATE invoices
@@ -107,7 +152,7 @@ class InvoiceRepository:
 
     def _to_model(self, row: dict) -> Invoice:
         return Invoice(
-            id=row["id"],
+            id=row.get("id"),
             invoice_code=row["invoice_code"],
             customer_code=row["customer_code"],
             billing_period=row["billing_period"],
