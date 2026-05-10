@@ -24,23 +24,28 @@ class MeterReadingService:
 
     def create_reading(self, request: MeterReadingCreateDTO, recorded_by_user_id: int | None = None) -> MeterReadingDTO:
         customer_code = request.customer_code.strip()
-        if self.customer_repository.get_by_code(customer_code) is None:
-            raise ValueError("Không tìm thấy hộ dùng điện.")
-        if not request.reading_period.strip():
-            raise ValueError("Vui lòng chọn kỳ ghi số.")
-        if request.new_index < 0:
-            raise ValueError("Chỉ số mới không được âm.")
-        if self.meter_reading_repository.get_for_customer_period(customer_code, request.reading_period):
-            raise ValueError("Hộ này đã có chỉ số cho kỳ đã chọn.")
+        reading_period = request.reading_period.strip()
 
-        previous_index = self.get_latest_index(customer_code)
-        if request.new_index < previous_index:
-            raise ValueError("Chỉ số mới không được nhỏ hơn chỉ số gần nhất.")
+        if self.customer_repository.get_by_code(customer_code) is None:
+            raise ValueError("Khong tim thay ho dung dien.")
+        if not reading_period:
+            raise ValueError("Vui long chon ky ghi so.")
+        if request.new_index < 0:
+            raise ValueError("Chi so cong to khong duoc am.")
+        if self.meter_reading_repository.get_for_customer_period(customer_code, reading_period):
+            raise ValueError("Ho nay da co chi so cho ky da chon.")
+
+        previous = self.meter_reading_repository.get_previous_month_for_customer_period(customer_code, reading_period)
+        if previous is not None and request.new_index < previous.new_index:
+            raise ValueError(
+                f"Chi so cong to ky {reading_period} khong duoc nho hon chi so thang truoc "
+                f"({previous.reading_period}: {previous.new_index})."
+            )
 
         reading = MeterReading(
             id=None,
             customer_code=customer_code,
-            reading_period=request.reading_period.strip(),
+            reading_period=reading_period,
             new_index=request.new_index,
             note=request.note.strip(),
         )

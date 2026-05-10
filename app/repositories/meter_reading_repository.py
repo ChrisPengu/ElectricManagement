@@ -105,6 +105,12 @@ class MeterReadingRepository:
         )
         return self._to_model(row) if row else None
 
+    def get_previous_month_for_customer_period(self, customer_code: str, reading_period: str) -> MeterReading | None:
+        previous_period = self._previous_period(reading_period)
+        if previous_period is None:
+            return None
+        return self.get_for_customer_period(customer_code, previous_period)
+
     def create(self, reading: MeterReading, recorded_by_user_id: int | None = None) -> MeterReading:
         if self.db.backend == "mongodb":
             now = datetime.now()
@@ -157,3 +163,20 @@ class MeterReadingRepository:
             note=row["note"],
             created_at=created_at,
         )
+
+    def _previous_period(self, reading_period: str) -> str | None:
+        try:
+            month_text, year_text = reading_period.split("/")
+            month = int(month_text)
+            year = int(year_text)
+        except ValueError:
+            return None
+
+        if month < 1 or month > 12:
+            return None
+        if month == 1:
+            month = 12
+            year -= 1
+        else:
+            month -= 1
+        return f"{month:02d}/{year}"

@@ -13,11 +13,11 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QDateEdit,
-    QMessageBox,
 )
 
 from app.dto.requests import MeterReadingCreateDTO
 from ui.common_styles import PAGE_STYLE
+from ui.dialogs import show_info, show_warning
 
 
 class CongToForm(QWidget):
@@ -238,10 +238,13 @@ class CongToForm(QWidget):
     def save_reading(self):
         customer = self.cbo_hodan.currentData()
         if not customer:
-            QMessageBox.warning(self, "Thiếu dữ liệu", "Chưa có hộ dùng điện để ghi chỉ số.")
+            show_warning(self, "Thiếu dữ liệu", "Chưa có hộ dùng điện để ghi chỉ số.")
             return
         try:
-            new_index = int(self.txt_moi.text().strip())
+            raw_index = self.txt_moi.text().strip()
+            if not raw_index:
+                raise ValueError("Vui lòng nhập chỉ số công tơ.")
+            new_index = int(raw_index)
             self.context.meter_reading_service.create_reading(
                 MeterReadingCreateDTO(
                     customer_code=customer.customer_code,
@@ -261,5 +264,6 @@ class CongToForm(QWidget):
             self.txt_moi.clear()
             self.txt_note.clear()
             self.load_readings()
+            show_info(self, "Đã ghi nhận", "Đã lưu chỉ số công tơ.")
         except ValueError as exc:
-            QMessageBox.warning(self, "Không thể ghi chỉ số", str(exc))
+            show_warning(self, "Không thể ghi chỉ số", str(exc))

@@ -264,10 +264,6 @@ class TariffForm(QWidget):
                 "Tiền điện hộ gia đình = Phí cố định + Tổng(kWh theo từng bậc x đơn giá bậc) + VAT\n\n"
                 f"Phí cố định hiện tại: {fixed_fee:,} VNĐ/kỳ\n"
                 f"VAT hiện tại: {vat:.1f}%\n\n"
-                "Gợi ý triển khai nghiệp vụ sau này:\n"
-                "- Đọc sản lượng tiêu thụ từ chênh lệch chỉ số công tơ.\n"
-                "- Tự động chia sản lượng vào từng bậc.\n"
-                "- Tính thuế và tổng tiền cuối kỳ."
             )
             headers = ["Từ kWh", "Đến kWh", "Đơn giá minh họa (VNĐ)"]
             rows = [
