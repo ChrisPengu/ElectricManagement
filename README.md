@@ -9,7 +9,7 @@
 - Lập hóa đơn tiền điện từ chỉ số công tơ và biểu giá đang cấu hình.
 - Ghi nhận thanh toán, tạo biên nhận và cập nhật công nợ.
 - Cấu hình biểu giá điện, gồm phí cố định, VAT, giá nhà máy và bậc giá hộ gia đình.
-- Thống kê doanh thu, sản lượng tiêu thụ và top hộ dùng điện cao nhất.
+- Thống kê doanh thu, sản lượng tiêu thụ và top hộ dân dùng điện cao nhất.
 - Theo dõi sự cố điện và nhật ký thao tác Admin.
 
 ## Tài Khoản Mặc Định
@@ -97,7 +97,7 @@ Khi chạy, ứng dụng tự tạo collection, index và seed dữ liệu mẫu
 
 ## Cấu Hình SQL Server
 
-Ứng dụng đã hỗ trợ SQL Server qua `pyodbc`. Cần cài:
+Ứng dụng hỗ trợ SQL Server qua `pyodbc`. Cần cài:
 
 - SQL Server hoặc SQL Server Express.
 - ODBC Driver 17 hoặc 18 for SQL Server.
@@ -131,7 +131,7 @@ DB_SQLSERVER_ENCRYPT=0
 DB_SQLSERVER_TRUST_SERVER_CERTIFICATE=1
 ```
 
-Nếu dùng named instance, đặt host dạng:
+Nếu dùng named instance:
 
 ```text
 DB_SQLSERVER_HOST=localhost\SQLEXPRESS
@@ -143,13 +143,15 @@ Khi `DB_BACKEND=sqlserver`, app sẽ:
 - Tự tạo database nếu chưa có và tài khoản có quyền `CREATE DATABASE`.
 - Tự tạo bảng, cột bổ sung, index và seed dữ liệu Admin/cấu hình ban đầu.
 
-Nếu muốn tạo database thủ công, chỉ cần mở SQL Server Management Studio hoặc Azure Data Studio, copy toàn bộ nội dung file dưới đây và chạy:
+## Tạo Database SQL Server Bằng Script
+
+Nếu muốn tạo database thủ công trong SQL Server Management Studio, copy toàn bộ nội dung file này và chạy:
 
 ```text
 app/core/sqlserver_schema.sql
 ```
 
-Script này tự tạo database `ElectricManagement`, toàn bộ bảng, index, tài khoản `admin/admin123`, dữ liệu hộ dân mẫu và biểu giá mặc định. Có thể chạy lại nhiều lần vì các lệnh đều kiểm tra tồn tại trước khi tạo.
+File trên được viết theo kiểu SQL cơ bản thường dùng trong bài tập: `CREATE DATABASE`, `CREATE TABLE`, khóa chính, khóa ngoại, index và `INSERT` dữ liệu mẫu. Script này không phải migration chạy lặp nhiều lần. Nếu muốn chạy lại từ đầu, hãy xóa database `ElectricManagement` trong SSMS trước hoặc đổi tên database trong file SQL.
 
 ## Cấu Hình SQLite
 
@@ -162,13 +164,13 @@ DB_SQLITE_PATH=data/electric_management.db
 
 ## Ghi Chú Về SQL Server Schema
 
-Schema SQL Server chính nằm ở:
+Schema SQL Server dùng để copy qua SSMS nằm ở:
 
 ```text
 app/core/sqlserver_schema.sql
 ```
 
-`DatabaseManager` cũng có schema/migration tương ứng trong code để app tự khởi tạo khi chạy. Nếu sửa bảng trong tương lai, cần cập nhật cả:
+`DatabaseManager` cũng có phần tự khởi tạo/migration trong code để app chạy ổn khi bật backend SQL Server. Nếu sửa bảng trong tương lai, cần cập nhật cả:
 
 - `app/core/database.py`
 - `app/core/sqlserver_schema.sql`
