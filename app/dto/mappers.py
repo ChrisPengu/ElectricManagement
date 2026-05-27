@@ -42,6 +42,7 @@ def to_tariff_config_dto(config: TariffConfig) -> TariffConfigDTO:
         base_rate=config.base_rate,
         formula_note=config.formula_note,
         updated_at=config.updated_at.isoformat(sep=" ", timespec="seconds"),
+        price_tiers=[dict(tier) for tier in config.price_tiers],
     )
 
 
@@ -53,6 +54,7 @@ def tariff_upsert_dto_to_payload(dto: TariffUpsertDTO) -> dict:
         "peak_multiplier": dto.peak_multiplier,
         "base_rate": dto.base_rate,
         "formula_note": dto.formula_note,
+        "price_tiers": dto.price_tiers,
     }
 
 

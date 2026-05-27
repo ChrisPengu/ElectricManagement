@@ -111,6 +111,12 @@ class MeterReadingRepository:
             return None
         return self.get_for_customer_period(customer_code, previous_period)
 
+    def get_next_month_for_customer_period(self, customer_code: str, reading_period: str) -> MeterReading | None:
+        next_period = self._next_period(reading_period)
+        if next_period is None:
+            return None
+        return self.get_for_customer_period(customer_code, next_period)
+
     def create(self, reading: MeterReading, recorded_by_user_id: int | None = None) -> MeterReading:
         if self.db.backend == "mongodb":
             now = datetime.now()
@@ -151,6 +157,48 @@ class MeterReadingRepository:
             )
         return self.get_for_customer_period(reading.customer_code, reading.reading_period) or reading
 
+    def update(self, reading: MeterReading, updated_by_user_id: int | None = None) -> MeterReading:
+        if self.db.backend == "mongodb":
+            self.db.mongo_collection("meter_readings").update_one(
+                {"customer_code": reading.customer_code, "reading_period": reading.reading_period},
+                {
+                    "$set": {
+                        "new_index": reading.new_index,
+                        "note": reading.note,
+                        "updated_by_user_id": updated_by_user_id,
+                        "updated_at": datetime.now(),
+                    }
+                },
+            )
+            return self.get_for_customer_period(reading.customer_code, reading.reading_period) or reading
+
+        if self.db.has_column("meter_readings", "updated_by_user_id"):
+            self.db.execute(
+                """
+                UPDATE meter_readings
+                SET new_index = ?, note = ?, updated_by_user_id = ?, updated_at = ?
+                WHERE customer_code = ? AND reading_period = ?
+                """,
+                (
+                    reading.new_index,
+                    reading.note,
+                    updated_by_user_id,
+                    datetime.now().isoformat(sep=" ", timespec="seconds"),
+                    reading.customer_code,
+                    reading.reading_period,
+                ),
+            )
+        else:
+            self.db.execute(
+                """
+                UPDATE meter_readings
+                SET new_index = ?, note = ?
+                WHERE customer_code = ? AND reading_period = ?
+                """,
+                (reading.new_index, reading.note, reading.customer_code, reading.reading_period),
+            )
+        return self.get_for_customer_period(reading.customer_code, reading.reading_period) or reading
+
     def _to_model(self, row: dict) -> MeterReading:
         created_at = row["created_at"]
         if isinstance(created_at, str):
@@ -179,4 +227,21 @@ class MeterReadingRepository:
             year -= 1
         else:
             month -= 1
+        return f"{month:02d}/{year}"
+
+    def _next_period(self, reading_period: str) -> str | None:
+        try:
+            month_text, year_text = reading_period.split("/")
+            month = int(month_text)
+            year = int(year_text)
+        except ValueError:
+            return None
+
+        if month < 1 or month > 12:
+            return None
+        if month == 12:
+            month = 1
+            year += 1
+        else:
+            month += 1
         return f"{month:02d}/{year}"

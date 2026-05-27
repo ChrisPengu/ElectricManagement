@@ -15,10 +15,11 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QMessageBox,
+    QAbstractItemView,
 )
 
 from app.dto.requests import TariffUpsertDTO
-from app.models import ContractType
+from app.models import ContractType, default_household_price_tiers
 from ui.common_styles import PAGE_STYLE
 
 
@@ -27,6 +28,7 @@ class TariffForm(QWidget):
         super().__init__()
         self.context = context
         self._loading_config = False
+        self.price_tiers = default_household_price_tiers()
         self.build_ui()
         self.load_contract_config()
 
@@ -46,31 +48,22 @@ class TariffForm(QWidget):
         eyebrow = QLabel("BIỂU GIÁ ĐIỆN")
         eyebrow.setProperty("class", "sectionEyebrow")
 
-        title = QLabel("Thiết lập công thức và loại hợp đồng cung cấp điện")
+        title = QLabel("Thiết lập công thức và khung giá tiền điện")
         title.setProperty("class", "sectionTitle")
 
         desc = QLabel(
-            "Phân hệ này dùng để cấu hình nhóm hợp đồng, phụ phí cơ bản, VAT và cách diễn giải công thức tính tiền điện. "
-            "Hiện tại màn hình phục vụ demo giao diện, sau này có thể gắn trực tiếp với database để lưu biểu giá."
+            "Admin có thể cập nhật phí cố định, VAT, đơn giá nhà máy và các bậc giá hộ gia đình. "
+            "Hóa đơn tạo mới sẽ dùng cấu hình đang có trong database."
         )
         desc.setProperty("class", "sectionDesc")
         desc.setWordWrap(True)
 
         hint_row = QHBoxLayout()
         hint_row.setSpacing(10)
-
-        pill_one = QLabel("Hỗ trợ 2 loại hợp đồng")
-        pill_one.setProperty("class", "infoPill")
-
-        pill_two = QLabel("Có xem trước công thức")
-        pill_two.setProperty("class", "infoPill")
-
-        pill_three = QLabel("Sẵn sàng tích hợp database")
-        pill_three.setProperty("class", "infoPill")
-
-        hint_row.addWidget(pill_one)
-        hint_row.addWidget(pill_two)
-        hint_row.addWidget(pill_three)
+        for text in ["Lưu trực tiếp vào database", "Sửa bảng bậc giá", "Hóa đơn mới áp dụng cấu hình mới"]:
+            pill = QLabel(text)
+            pill.setProperty("class", "infoPill")
+            hint_row.addWidget(pill)
         hint_row.addStretch()
 
         intro_layout.addWidget(eyebrow)
@@ -90,7 +83,7 @@ class TariffForm(QWidget):
         config_title = QLabel("Cấu hình hợp đồng")
         config_title.setProperty("class", "sectionTitle")
 
-        config_desc = QLabel("Chọn nhóm hợp đồng và tham số nền cho công thức tính tiền điện.")
+        config_desc = QLabel("Chọn nhóm hợp đồng và điều chỉnh tham số tính tiền điện.")
         config_desc.setProperty("class", "sectionDesc")
         config_desc.setWordWrap(True)
 
@@ -99,23 +92,9 @@ class TariffForm(QWidget):
         form.setVerticalSpacing(12)
         form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-        lbl_contract = QLabel("Loại hợp đồng")
-        lbl_contract.setProperty("class", "fieldLabel")
-
-        lbl_fixed = QLabel("Phí cố định / kỳ")
-        lbl_fixed.setProperty("class", "fieldLabel")
-
-        lbl_vat = QLabel("VAT")
-        lbl_vat.setProperty("class", "fieldLabel")
-
-        lbl_peak = QLabel("Hệ số giờ cao điểm")
-        lbl_peak.setProperty("class", "fieldLabel")
-
-        lbl_note = QLabel("Đơn giá nhà máy")
-        lbl_note.setProperty("class", "fieldLabel")
-
         self.cbo_contract = QComboBox()
-        self.cbo_contract.addItems(["Hộ gia đình", "Nhà máy"])
+        self.cbo_contract.addItem("Hộ gia đình", ContractType.HOUSEHOLD)
+        self.cbo_contract.addItem("Nhà máy", ContractType.FACTORY)
         self.cbo_contract.currentTextChanged.connect(self.load_contract_config)
 
         self.spin_fixed_fee = QSpinBox()
@@ -145,11 +124,11 @@ class TariffForm(QWidget):
         self.spin_factory_rate.setValue(2450)
         self.spin_factory_rate.valueChanged.connect(self.refresh_contract_view)
 
-        form.addRow(lbl_contract, self.cbo_contract)
-        form.addRow(lbl_fixed, self.spin_fixed_fee)
-        form.addRow(lbl_vat, self.spin_vat)
-        form.addRow(lbl_peak, self.spin_peak)
-        form.addRow(lbl_note, self.spin_factory_rate)
+        form.addRow(self.build_field_label("Loại hợp đồng"), self.cbo_contract)
+        form.addRow(self.build_field_label("Phí cố định / kỳ"), self.spin_fixed_fee)
+        form.addRow(self.build_field_label("VAT"), self.spin_vat)
+        form.addRow(self.build_field_label("Hệ số giờ cao điểm"), self.spin_peak)
+        form.addRow(self.build_field_label("Đơn giá nhà máy"), self.spin_factory_rate)
 
         summary_card = QFrame()
         summary_card.setProperty("class", "softCard")
@@ -169,13 +148,11 @@ class TariffForm(QWidget):
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
-
         self.btn_apply = QPushButton("Áp dụng cấu hình")
         self.btn_preview = QPushButton("Làm mới xem trước")
         self.btn_preview.setProperty("variant", "secondary")
         self.btn_preview.clicked.connect(self.refresh_contract_view)
         self.btn_apply.clicked.connect(self.save_config)
-
         btn_row.addWidget(self.btn_apply)
         btn_row.addWidget(self.btn_preview)
         btn_row.addStretch()
@@ -198,7 +175,7 @@ class TariffForm(QWidget):
         formula_title = QLabel("Xem trước công thức")
         formula_title.setProperty("class", "sectionTitle")
 
-        formula_desc = QLabel("Công thức sẽ thay đổi theo loại hợp đồng và tham số bạn đang chọn.")
+        formula_desc = QLabel("Công thức thay đổi theo loại hợp đồng và tham số đang chọn.")
         formula_desc.setProperty("class", "sectionDesc")
         formula_desc.setWordWrap(True)
 
@@ -216,23 +193,38 @@ class TariffForm(QWidget):
         table_layout.setContentsMargins(22, 20, 22, 20)
         table_layout.setSpacing(12)
 
-        table_title = QLabel("Khung giá minh họa")
+        table_title = QLabel("Khung giá")
         table_title.setProperty("class", "sectionTitle")
 
         self.lbl_table_desc = QLabel()
         self.lbl_table_desc.setProperty("class", "sectionDesc")
         self.lbl_table_desc.setWordWrap(True)
 
+        tier_btn_row = QHBoxLayout()
+        tier_btn_row.setSpacing(10)
+        self.btn_add_tier = QPushButton("Thêm bậc giá")
+        self.btn_remove_tier = QPushButton("Xóa bậc đang chọn")
+        self.btn_reset_tiers = QPushButton("Khôi phục mặc định")
+        for button in [self.btn_add_tier, self.btn_remove_tier, self.btn_reset_tiers]:
+            button.setProperty("variant", "secondary")
+        self.btn_add_tier.clicked.connect(self.add_price_tier)
+        self.btn_remove_tier.clicked.connect(self.remove_selected_price_tier)
+        self.btn_reset_tiers.clicked.connect(self.reset_price_tiers)
+        tier_btn_row.addWidget(self.btn_add_tier)
+        tier_btn_row.addWidget(self.btn_remove_tier)
+        tier_btn_row.addWidget(self.btn_reset_tiers)
+        tier_btn_row.addStretch()
+
         self.table_tariff = QTableWidget(0, 0)
         self.table_tariff.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table_tariff.verticalHeader().setVisible(False)
         self.table_tariff.setAlternatingRowColors(True)
-        self.table_tariff.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table_tariff.setSelectionBehavior(QTableWidget.SelectRows)
         self.table_tariff.setMinimumHeight(260)
 
         table_layout.addWidget(table_title)
         table_layout.addWidget(self.lbl_table_desc)
+        table_layout.addLayout(tier_btn_row)
         table_layout.addWidget(self.table_tariff)
 
         preview_column.addWidget(formula_card)
@@ -244,88 +236,229 @@ class TariffForm(QWidget):
         root.addWidget(intro_card)
         root.addLayout(body_row, 1)
 
-    def refresh_contract_view(self):
+    def build_field_label(self, text):
+        label = QLabel(text)
+        label.setProperty("class", "fieldLabel")
+        return label
+
+    def current_contract_type(self):
+        return self.cbo_contract.currentData() or ContractType.HOUSEHOLD
+
+    def is_household_contract(self):
+        return self.current_contract_type() == ContractType.HOUSEHOLD
+
+    def refresh_contract_view(self, *_, sync_table=True):
         if self._loading_config:
             return
-        contract_type = self.cbo_contract.currentText()
+        if sync_table and self.is_household_contract() and self.table_tariff.columnCount() == 3:
+            self.cache_price_tiers_from_table()
+
         fixed_fee = self.spin_fixed_fee.value()
         vat = self.spin_vat.value()
         peak_coef = self.spin_peak.value()
         factory_rate = self.spin_factory_rate.value()
 
-        if contract_type == "Hộ gia đình":
+        if self.is_household_contract():
             self.lbl_contract_badge.setText("Hợp đồng dân cư")
             self.lbl_contract_summary.setText(
-                "Áp dụng cơ chế tính lũy tiến theo bậc tiêu thụ. Phù hợp với hộ dân và khu nhà ở, "
-                "ưu tiên mô hình giá tăng theo sản lượng sử dụng."
+                "Áp dụng tính lũy tiến theo bậc kWh. Có thể sửa trực tiếp các khoảng và đơn giá trong bảng."
             )
-            self.lbl_table_desc.setText("Minh họa các bậc giá để Admin chuẩn hóa công thức cho nhóm hộ dân.")
+            self.lbl_table_desc.setText(
+                "Nhập số nguyên cho các cột. Để trống cột Đến kWh ở bậc cuối để áp dụng cho phần vượt mức."
+            )
             self.txt_formula.setPlainText(
-                "Tiền điện hộ gia đình = Phí cố định + Tổng(kWh theo từng bậc x đơn giá bậc) + VAT\n\n"
-                f"Phí cố định hiện tại: {fixed_fee:,} VNĐ/kỳ\n"
-                f"VAT hiện tại: {vat:.1f}%\n\n"
+                "Tiền điện hộ gia đình = Phí cố định + Tổng(kWh từng bậc x đơn giá bậc) + VAT\n\n"
+                f"Phí cố định hiện tại: {fixed_fee:,} VND/kỳ\n"
+                f"VAT hiện tại: {vat:.1f}%\n"
             )
-            headers = ["Từ kWh", "Đến kWh", "Đơn giá minh họa (VNĐ)"]
-            rows = [
-                ["0", "50", "1,806"],
-                ["51", "100", "1,866"],
-                ["101", "200", "2,167"],
-                ["201", "300", "2,729"],
-                ["301", "400", "3,050"],
-                ["401", "Trở lên", "3,151"],
-            ]
+            headers = ["Từ kWh", "Đến kWh", "Đơn giá (VND/kWh)"]
+            rows = self.price_tier_rows()
+            editable = True
         else:
             self.lbl_contract_badge.setText("Hợp đồng nhà máy")
             self.lbl_contract_summary.setText(
-                "Áp dụng biểu giá cho nhóm sản xuất, có thể tách đơn giá theo giờ cao điểm, bình thường và thấp điểm. "
-                "Phù hợp với mô hình tiêu thụ lớn và hợp đồng doanh nghiệp."
+                "Áp dụng đơn giá cơ sở và hệ số giờ cao điểm cho nhóm sản xuất, nhà máy hoặc đơn vị tiêu thụ lớn."
             )
-            self.lbl_table_desc.setText("Minh họa đơn giá theo khung thời gian cho hợp đồng nhà máy.")
+            self.lbl_table_desc.setText("Bảng bên dưới là giá trị xem trước theo đơn giá cơ sở và hệ số đang chọn.")
             self.txt_formula.setPlainText(
-                "Tiền điện nhà máy = Phí cố định + (kWh x đơn giá sản xuất theo khung giờ) + VAT\n\n"
-                f"Phí cố định hiện tại: {fixed_fee:,} VNĐ/kỳ\n"
+                "Tiền điện nhà máy = Phí cố định + (kWh x đơn giá cơ sở x hệ số giờ cao điểm) + VAT\n\n"
+                f"Phí cố định hiện tại: {fixed_fee:,} VND/kỳ\n"
                 f"VAT hiện tại: {vat:.1f}%\n"
-                f"Đơn giá cơ sở hiện tại: {factory_rate:,} VNĐ/kWh\n"
-                f"Hệ số giờ cao điểm: x{peak_coef:.2f}\n\n"
-                "Gợi ý triển khai nghiệp vụ sau này:\n"
-                "- Phân loại sản lượng theo ca hoặc khung giờ.\n"
-                "- Nhân hệ số cho giờ cao điểm.\n"
-                "- Tổng hợp về hóa đơn công nghiệp."
+                f"Đơn giá cơ sở hiện tại: {factory_rate:,} VND/kWh\n"
+                f"Hệ số giờ cao điểm: x{peak_coef:.2f}\n"
             )
-            headers = ["Khung giờ", "Hệ số", "Đơn giá minh họa (VNĐ)"]
+            headers = ["Khung giờ", "Hệ số", "Đơn giá xem trước (VND/kWh)"]
             rows = [
                 ["Thấp điểm", "0.75", f"{int(factory_rate * 0.75):,}"],
                 ["Bình thường", "1.00", f"{factory_rate:,}"],
                 ["Cao điểm", f"{peak_coef:.2f}", f"{int(factory_rate * peak_coef):,}"],
             ]
+            editable = False
 
+        self.populate_tariff_table(headers, rows, editable)
+        for button in [self.btn_add_tier, self.btn_remove_tier, self.btn_reset_tiers]:
+            button.setVisible(editable)
+
+    def populate_tariff_table(self, headers, rows, editable):
+        self.table_tariff.blockSignals(True)
         self.table_tariff.setColumnCount(len(headers))
         self.table_tariff.setHorizontalHeaderLabels(headers)
         self.table_tariff.setRowCount(len(rows))
+        if editable:
+            triggers = (
+                QAbstractItemView.DoubleClicked
+                | QAbstractItemView.SelectedClicked
+                | QAbstractItemView.EditKeyPressed
+            )
+        else:
+            triggers = QAbstractItemView.NoEditTriggers
+        self.table_tariff.setEditTriggers(triggers)
 
         for row_index, row_data in enumerate(rows):
             for col_index, value in enumerate(row_data):
-                item = QTableWidgetItem(value)
+                item = QTableWidgetItem(str(value))
                 item.setTextAlignment(Qt.AlignCenter)
+                if not editable:
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 self.table_tariff.setItem(row_index, col_index, item)
+        self.table_tariff.blockSignals(False)
+
+    def price_tier_rows(self):
+        return [
+            [
+                str(tier["from_kwh"]),
+                "" if tier["to_kwh"] is None else str(tier["to_kwh"]),
+                str(tier["rate"]),
+            ]
+            for tier in self.price_tiers
+        ]
+
+    def collect_price_tiers(self, show_errors=True):
+        try:
+            tiers = []
+            expected_from = None
+            for row in range(self.table_tariff.rowCount()):
+                from_text = self.cell_text(row, 0)
+                to_text = self.cell_text(row, 1)
+                rate_text = self.cell_text(row, 2)
+
+                if not from_text or not rate_text:
+                    raise ValueError("Cột Từ kWh và Đơn giá không được để trống.")
+
+                from_kwh = int(from_text)
+                to_kwh = None if to_text == "" else int(to_text)
+                rate = int(rate_text.replace(".", "").replace(",", ""))
+                lower_bound = max(from_kwh, 1)
+
+                if row == 0 and from_kwh not in (0, 1):
+                    raise ValueError("Bậc đầu tiên phải bắt đầu từ 0 hoặc 1 kWh.")
+                if expected_from is not None and from_kwh != expected_from:
+                    raise ValueError("Các bậc giá phải liên tiếp nhau.")
+                if rate <= 0:
+                    raise ValueError("Đơn giá phải lớn hơn 0.")
+                if to_kwh is None:
+                    if row != self.table_tariff.rowCount() - 1:
+                        raise ValueError("Chỉ bậc cuối cùng được để trống cột Đến kWh.")
+                else:
+                    if to_kwh < lower_bound:
+                        raise ValueError("Cột Đến kWh phải lớn hơn hoặc bằng cột Từ kWh.")
+                    expected_from = to_kwh + 1
+
+                tiers.append({"from_kwh": from_kwh, "to_kwh": to_kwh, "rate": rate})
+
+            if not tiers:
+                raise ValueError("Cần có ít nhất một bậc giá.")
+            if tiers[-1]["to_kwh"] is not None:
+                raise ValueError("Bậc cuối cùng cần để trống cột Đến kWh.")
+            return tiers
+        except (AttributeError, TypeError, ValueError) as exc:
+            if show_errors:
+                raise ValueError(str(exc)) from exc
+            return None
+
+    def cell_text(self, row, column):
+        item = self.table_tariff.item(row, column)
+        return item.text().strip() if item else ""
+
+    def cache_price_tiers_from_table(self):
+        tiers = self.collect_price_tiers(show_errors=False)
+        if tiers:
+            self.price_tiers = tiers
+
+    def add_price_tier(self):
+        self.cache_price_tiers_from_table()
+        tiers = [dict(tier) for tier in (self.price_tiers or default_household_price_tiers())]
+        if tiers[-1]["to_kwh"] is None:
+            previous_to = tiers[-2]["to_kwh"] if len(tiers) > 1 else 0
+            previous_to = int(previous_to or 0)
+            new_from = previous_to + 1
+            new_to = new_from + 49
+            new_rate = int(tiers[-1]["rate"])
+            tiers[-1]["from_kwh"] = new_to + 1
+            tiers.insert(-1, {"from_kwh": new_from, "to_kwh": new_to, "rate": new_rate})
+        else:
+            last_to = int(tiers[-1]["to_kwh"])
+            tiers.append({"from_kwh": last_to + 1, "to_kwh": None, "rate": int(tiers[-1]["rate"])})
+        self.price_tiers = tiers
+        self.refresh_contract_view(sync_table=False)
+
+    def remove_selected_price_tier(self):
+        self.cache_price_tiers_from_table()
+        if len(self.price_tiers) <= 1:
+            QMessageBox.warning(self, "Không thể xóa", "Cần giữ lại ít nhất một bậc giá.")
+            return
+        row = self.table_tariff.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Chưa chọn bậc giá", "Vui lòng chọn một dòng trong bảng.")
+            return
+        tiers = [dict(tier) for tier in self.price_tiers]
+        del tiers[row]
+        self.price_tiers = self.normalize_tier_boundaries(tiers)
+        self.refresh_contract_view(sync_table=False)
+
+    def normalize_tier_boundaries(self, tiers):
+        normalized = []
+        next_from = 0 if tiers[0].get("from_kwh") in (0, None) else 1
+        for index, tier in enumerate(tiers):
+            old_from = max(int(tier.get("from_kwh", 0)), 1)
+            old_to = tier.get("to_kwh")
+            normalized_tier = {"from_kwh": next_from, "to_kwh": None, "rate": int(tier["rate"])}
+            if index != len(tiers) - 1 and old_to is not None:
+                width = max(int(old_to) - old_from, 0)
+                new_lower = max(next_from, 1)
+                normalized_tier["to_kwh"] = new_lower + width
+                next_from = normalized_tier["to_kwh"] + 1
+            normalized.append(normalized_tier)
+        return normalized
+
+    def reset_price_tiers(self):
+        self.price_tiers = default_household_price_tiers()
+        self.refresh_contract_view(sync_table=False)
 
     def load_contract_config(self):
         if not self.context:
-            self.refresh_contract_view()
+            self.refresh_contract_view(sync_table=False)
             return
-        contract_type = self.cbo_contract.currentText()
+
+        contract_type = self.current_contract_type()
         try:
-            config = self.context.tariff_service.get_config(ContractType(contract_type))
+            config = self.context.tariff_service.get_config(contract_type)
         except Exception:
             config = None
+
         if config:
             self._loading_config = True
             self.spin_fixed_fee.setValue(config.fixed_fee)
             self.spin_vat.setValue(config.vat_percent)
             self.spin_peak.setValue(config.peak_multiplier)
             self.spin_factory_rate.setValue(config.base_rate)
+            if contract_type == ContractType.HOUSEHOLD:
+                self.price_tiers = config.price_tiers or default_household_price_tiers()
             self._loading_config = False
-        self.refresh_contract_view()
+        elif contract_type == ContractType.HOUSEHOLD:
+            self.price_tiers = default_household_price_tiers()
+
+        self.refresh_contract_view(sync_table=False)
 
     def refresh_data(self):
         self.load_contract_config()
@@ -333,16 +466,18 @@ class TariffForm(QWidget):
     def save_config(self):
         if not self.context:
             return
-        contract_type = self.cbo_contract.currentText()
+        contract_type = self.current_contract_type()
         try:
+            price_tiers = self.collect_price_tiers() if contract_type == ContractType.HOUSEHOLD else []
             self.context.tariff_service.save_config(
                 TariffUpsertDTO(
-                    contract_type=contract_type,
+                    contract_type=contract_type.value,
                     fixed_fee=self.spin_fixed_fee.value(),
                     vat_percent=self.spin_vat.value(),
                     peak_multiplier=self.spin_peak.value(),
                     base_rate=self.spin_factory_rate.value(),
                     formula_note=self.txt_formula.toPlainText(),
+                    price_tiers=price_tiers,
                 )
             )
             QMessageBox.information(self, "Đã lưu", "Cấu hình biểu giá đã được cập nhật.")

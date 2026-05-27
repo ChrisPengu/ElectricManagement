@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -33,10 +34,19 @@ class TariffUpsertDTO:
     peak_multiplier: float
     base_rate: int
     formula_note: str
+    price_tiers: list[dict[str, Any]] | None = None
 
 
 @dataclass(slots=True)
 class MeterReadingCreateDTO:
+    customer_code: str
+    reading_period: str
+    new_index: int
+    note: str = ""
+
+
+@dataclass(slots=True)
+class MeterReadingUpdateDTO:
     customer_code: str
     reading_period: str
     new_index: int

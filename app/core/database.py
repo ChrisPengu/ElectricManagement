@@ -16,6 +16,7 @@ class DatabaseManager:
         self._sqlserver_module = None
         self._mongodb_client = None
         self._mongodb_database = None
+        self._sqlserver_database_ready = False
 
         if self.backend == "sqlite":
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -89,6 +90,8 @@ class DatabaseManager:
         return any(row["name"] == column_name for row in rows)
 
     def initialize(self) -> None:
+        if self.backend == "sqlserver":
+            self._ensure_sqlserver_database()
         if self.backend == "mongodb":
             self._initialize_mongodb()
             return
@@ -154,27 +157,56 @@ class DatabaseManager:
         pymongo = self._import_pymongo()
         return pymongo.ReturnDocument
 
-    def _connect_sqlserver(self):
+    def _connect_sqlserver(self, database_name: str | None = None, autocommit: bool = False):
         pyodbc = self._import_pyodbc()
         settings = self.settings
+        database = database_name if database_name is not None else settings.sqlserver_database
 
         if settings.sqlserver_trusted_connection:
             connection_string = (
                 f"DRIVER={{{settings.sqlserver_driver}}};"
-                f"SERVER={settings.sqlserver_host},{settings.sqlserver_port};"
-                f"DATABASE={settings.sqlserver_database};"
+                f"SERVER={self._sqlserver_server_address()};"
+                f"DATABASE={database};"
                 "Trusted_Connection=yes;"
+                f"Encrypt={'yes' if settings.sqlserver_encrypt else 'no'};"
+                f"TrustServerCertificate={'yes' if settings.sqlserver_trust_server_certificate else 'no'};"
             )
         else:
             connection_string = (
                 f"DRIVER={{{settings.sqlserver_driver}}};"
-                f"SERVER={settings.sqlserver_host},{settings.sqlserver_port};"
-                f"DATABASE={settings.sqlserver_database};"
+                f"SERVER={self._sqlserver_server_address()};"
+                f"DATABASE={database};"
                 f"UID={settings.sqlserver_username};"
                 f"PWD={settings.sqlserver_password};"
+                f"Encrypt={'yes' if settings.sqlserver_encrypt else 'no'};"
+                f"TrustServerCertificate={'yes' if settings.sqlserver_trust_server_certificate else 'no'};"
             )
 
-        return pyodbc.connect(connection_string)
+        return pyodbc.connect(connection_string, autocommit=autocommit)
+
+    def _sqlserver_server_address(self) -> str:
+        host = self.settings.sqlserver_host
+        if "\\" in host or "," in host:
+            return host
+        return f"{host},{self.settings.sqlserver_port}"
+
+    def _ensure_sqlserver_database(self) -> None:
+        if self._sqlserver_database_ready:
+            return
+
+        database_name = self.settings.sqlserver_database
+        escaped_name = database_name.replace("]", "]]")
+        connection = self._connect_sqlserver(database_name="master", autocommit=True)
+        try:
+            cursor = connection.cursor()
+            cursor.execute("SELECT DB_ID(?) AS database_id", (database_name,))
+            row = cursor.fetchone()
+            if row is None or row[0] is None:
+                cursor.execute(f"CREATE DATABASE [{escaped_name}]")
+        finally:
+            connection.close()
+
+        self._sqlserver_database_ready = True
 
     def _import_pyodbc(self):
         if self._sqlserver_module is not None:
@@ -231,6 +263,11 @@ class DatabaseManager:
         migrations = {
             "meter_readings": [
                 ("recorded_by_user_id", "ALTER TABLE meter_readings ADD COLUMN recorded_by_user_id INTEGER"),
+                ("updated_by_user_id", "ALTER TABLE meter_readings ADD COLUMN updated_by_user_id INTEGER"),
+                ("updated_at", "ALTER TABLE meter_readings ADD COLUMN updated_at TEXT"),
+            ],
+            "tariff_configs": [
+                ("price_tiers", "ALTER TABLE tariff_configs ADD COLUMN price_tiers TEXT NOT NULL DEFAULT ''"),
             ],
             "invoices": [
                 ("consumption_kwh", "ALTER TABLE invoices ADD COLUMN consumption_kwh INTEGER NOT NULL DEFAULT 0"),
@@ -293,6 +330,7 @@ class DatabaseManager:
                 peak_multiplier REAL NOT NULL,
                 base_rate INTEGER NOT NULL,
                 formula_note TEXT NOT NULL,
+                price_tiers TEXT NOT NULL DEFAULT '',
                 updated_at TEXT NOT NULL
             )
             """,
@@ -304,9 +342,12 @@ class DatabaseManager:
                 new_index INTEGER NOT NULL,
                 note TEXT NOT NULL DEFAULT '',
                 recorded_by_user_id INTEGER,
+                updated_by_user_id INTEGER,
+                updated_at TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (customer_code) REFERENCES customers(customer_code),
-                FOREIGN KEY (recorded_by_user_id) REFERENCES users(id)
+                FOREIGN KEY (recorded_by_user_id) REFERENCES users(id),
+                FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
             )
             """,
             """
@@ -402,7 +443,8 @@ class DatabaseManager:
                 vat_percent FLOAT NOT NULL,
                 peak_multiplier FLOAT NOT NULL,
                 base_rate INT NOT NULL,
-                formula_note NVARCHAR(500) NOT NULL,
+                formula_note NVARCHAR(MAX) NOT NULL,
+                price_tiers NVARCHAR(MAX) NOT NULL DEFAULT '',
                 updated_at DATETIME2 NOT NULL
             )
             """,
@@ -415,9 +457,12 @@ class DatabaseManager:
                 new_index INT NOT NULL,
                 note NVARCHAR(500) NOT NULL DEFAULT '',
                 recorded_by_user_id INT NULL,
+                updated_by_user_id INT NULL,
+                updated_at DATETIME2 NULL,
                 created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
                 CONSTRAINT FK_meter_readings_customers FOREIGN KEY (customer_code) REFERENCES customers(customer_code),
-                CONSTRAINT FK_meter_readings_users FOREIGN KEY (recorded_by_user_id) REFERENCES users(id)
+                CONSTRAINT FK_meter_readings_users FOREIGN KEY (recorded_by_user_id) REFERENCES users(id),
+                CONSTRAINT FK_meter_readings_updated_users FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
             )
             """,
             """
@@ -487,6 +532,28 @@ class DatabaseManager:
             ALTER TABLE meter_readings ADD recorded_by_user_id INT NULL
             """,
             """
+            IF COL_LENGTH('meter_readings', 'updated_by_user_id') IS NULL
+            ALTER TABLE meter_readings ADD updated_by_user_id INT NULL
+            """,
+            """
+            IF COL_LENGTH('meter_readings', 'updated_at') IS NULL
+            ALTER TABLE meter_readings ADD updated_at DATETIME2 NULL
+            """,
+            """
+            IF COL_LENGTH('tariff_configs', 'price_tiers') IS NULL
+            ALTER TABLE tariff_configs ADD price_tiers NVARCHAR(MAX) NOT NULL CONSTRAINT DF_tariff_configs_price_tiers DEFAULT ''
+            """,
+            """
+            IF EXISTS (
+                SELECT 1
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'tariff_configs'
+                  AND COLUMN_NAME = 'formula_note'
+                  AND CHARACTER_MAXIMUM_LENGTH <> -1
+            )
+            ALTER TABLE tariff_configs ALTER COLUMN formula_note NVARCHAR(MAX) NOT NULL
+            """,
+            """
             IF COL_LENGTH('invoices', 'consumption_kwh') IS NULL
             ALTER TABLE invoices ADD consumption_kwh INT NOT NULL CONSTRAINT DF_invoices_consumption_kwh DEFAULT 0
             """,
@@ -525,6 +592,54 @@ class DatabaseManager:
             """
             IF COL_LENGTH('incidents', 'received_by_user_id') IS NULL
             ALTER TABLE incidents ADD received_by_user_id INT NULL
+            """,
+            """
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = 'IX_meter_readings_customer_period'
+                  AND object_id = OBJECT_ID('meter_readings')
+            )
+            CREATE INDEX IX_meter_readings_customer_period ON meter_readings(customer_code, reading_period)
+            """,
+            """
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = 'IX_invoices_customer_period'
+                  AND object_id = OBJECT_ID('invoices')
+            )
+            CREATE INDEX IX_invoices_customer_period ON invoices(customer_code, billing_period)
+            """,
+            """
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = 'IX_invoices_status'
+                  AND object_id = OBJECT_ID('invoices')
+            )
+            CREATE INDEX IX_invoices_status ON invoices(status)
+            """,
+            """
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = 'IX_payments_invoice_code'
+                  AND object_id = OBJECT_ID('payments')
+            )
+            CREATE INDEX IX_payments_invoice_code ON payments(invoice_code)
+            """,
+            """
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = 'IX_incidents_customer_status'
+                  AND object_id = OBJECT_ID('incidents')
+            )
+            CREATE INDEX IX_incidents_customer_status ON incidents(customer_code, status)
+            """,
+            """
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE name = 'IX_audit_logs_user_created_at'
+                  AND object_id = OBJECT_ID('audit_logs')
+            )
+            CREATE INDEX IX_audit_logs_user_created_at ON audit_logs(user_id, created_at)
             """,
         ]
 

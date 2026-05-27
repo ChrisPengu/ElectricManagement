@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -31,6 +31,7 @@ class TariffConfigDTO:
     base_rate: int
     formula_note: str
     updated_at: str
+    price_tiers: list[dict[str, int | None]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

@@ -162,4 +162,46 @@ PAGE_STYLE = """
         font-size: 12px;
         font-weight: 700;
     }
+
+    QScrollBar:vertical {
+        background: #eef4fb;
+        width: 10px;
+        margin: 4px 0 4px 0;
+        border-radius: 5px;
+    }
+
+    QScrollBar::handle:vertical {
+        background: #b9cbe0;
+        min-height: 42px;
+        border-radius: 5px;
+    }
+
+    QScrollBar::handle:vertical:hover {
+        background: #8ba7c4;
+    }
+
+    QScrollBar:horizontal {
+        background: #eef4fb;
+        height: 10px;
+        margin: 0 4px 0 4px;
+        border-radius: 5px;
+    }
+
+    QScrollBar::handle:horizontal {
+        background: #b9cbe0;
+        min-width: 42px;
+        border-radius: 5px;
+    }
+
+    QScrollBar::handle:horizontal:hover {
+        background: #8ba7c4;
+    }
+
+    QScrollBar::add-line:vertical,
+    QScrollBar::sub-line:vertical,
+    QScrollBar::add-line:horizontal,
+    QScrollBar::sub-line:horizontal {
+        width: 0;
+        height: 0;
+    }
 """

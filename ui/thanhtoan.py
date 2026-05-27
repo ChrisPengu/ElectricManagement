@@ -53,13 +53,13 @@ class ThanhToanForm(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
-        root.setSpacing(18)
+        root.setSpacing(14)
 
         info_row = QHBoxLayout()
         info_row.setSpacing(14)
-        self.stat_receivable_count = self.build_stat_card("Hoa don can thu", "0")
-        self.stat_receivable_amount = self.build_stat_card("Tong tien can thu", "0 VND")
-        self.stat_payment_count = self.build_stat_card("Giao dich da ghi nhan", "0")
+        self.stat_receivable_count = self.build_stat_card("Hóa đơn cần thu", "0")
+        self.stat_receivable_amount = self.build_stat_card("Tổng tiền cần thu", "0 VND")
+        self.stat_payment_count = self.build_stat_card("Giao dịch đã ghi nhận", "0")
         info_row.addWidget(self.stat_receivable_count)
         info_row.addWidget(self.stat_receivable_amount)
         info_row.addWidget(self.stat_payment_count)
@@ -68,17 +68,17 @@ class ThanhToanForm(QWidget):
         card.setProperty("class", "card")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 20)
-        layout.setSpacing(16)
+        layout.setSpacing(12)
 
-        eyebrow = QLabel("QUAN LY THU TIEN")
+        eyebrow = QLabel("QUẢN LÝ THU TIỀN")
         eyebrow.setProperty("class", "sectionEyebrow")
 
-        title = QLabel("Ghi nhan thu tien va cap nhat cong no")
+        title = QLabel("Ghi nhận thu tiền và cập nhật công nợ")
         title.setProperty("class", "sectionTitle")
 
         desc = QLabel(
-            "Danh sach hoa don can thu duoc lay truc tiep tu MongoDB. Khi ghi nhan thu, he thong tao bien nhan "
-            "va chuyen hoa don sang trang thai da thanh toan."
+            "Danh sách hóa đơn cần thu được lấy trực tiếp từ backend đang dùng. Khi ghi nhận thu, hệ thống tạo biên nhận "
+            "và chuyển hóa đơn sang trạng thái đã thanh toán."
         )
         desc.setProperty("class", "sectionDesc")
         desc.setWordWrap(True)
@@ -89,7 +89,7 @@ class ThanhToanForm(QWidget):
         left_panel = QFrame()
         left_panel.setObjectName("paymentFormPanel")
         left_panel.setProperty("class", "softCard")
-        left_panel.setMinimumHeight(165)
+        left_panel.setMinimumHeight(190)
         left_form = QFormLayout(left_panel)
         left_form.setContentsMargins(16, 14, 16, 14)
         left_form.setHorizontalSpacing(12)
@@ -98,7 +98,7 @@ class ThanhToanForm(QWidget):
         right_panel = QFrame()
         right_panel.setObjectName("paymentFormPanel")
         right_panel.setProperty("class", "softCard")
-        right_panel.setMinimumHeight(165)
+        right_panel.setMinimumHeight(205)
         right_form = QFormLayout(right_panel)
         right_form.setContentsMargins(16, 14, 16, 14)
         right_form.setHorizontalSpacing(12)
@@ -120,13 +120,13 @@ class ThanhToanForm(QWidget):
         self.lbl_collector.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
 
         self.cbo_method = QComboBox()
-        self.cbo_method.addItems(["Tien mat", "Chuyen khoan", "Vi dien tu"])
+        self.cbo_method.addItems(["Tiền mặt", "Chuyển khoản", "Ví điện tử"])
 
         self.txt_payer = QLineEdit()
-        self.txt_payer.setPlaceholderText("Ten nguoi nop tien")
+        self.txt_payer.setPlaceholderText("Tên người nộp tiền")
 
         self.txt_note = QLineEdit()
-        self.txt_note.setPlaceholderText("Noi dung doi soat neu co")
+        self.txt_note.setPlaceholderText("Nội dung đối soát nếu có")
 
         for field in [
             self.cbo_bill,
@@ -140,13 +140,13 @@ class ThanhToanForm(QWidget):
             field.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             field.setFixedHeight(34)
 
-        left_form.addRow(self.build_field_label("Hoa don can xu ly"), self.cbo_bill)
-        left_form.addRow(self.build_field_label("So tien phai thu"), self.lbl_amount)
-        left_form.addRow(self.build_field_label("Trang thai cong no"), self.lbl_status)
-        right_form.addRow(self.build_field_label("Kenh thu"), self.cbo_method)
-        right_form.addRow(self.build_field_label("Tai khoan ghi nhan"), self.lbl_collector)
-        right_form.addRow(self.build_field_label("Nguoi nop tien"), self.txt_payer)
-        right_form.addRow(self.build_field_label("Ghi chu"), self.txt_note)
+        left_form.addRow(self.build_field_label("Hóa đơn cần xử lý"), self.cbo_bill)
+        left_form.addRow(self.build_field_label("Số tiền phải thu"), self.lbl_amount)
+        left_form.addRow(self.build_field_label("Trạng thái công nợ"), self.lbl_status)
+        right_form.addRow(self.build_field_label("Kênh thu"), self.cbo_method)
+        right_form.addRow(self.build_field_label("Tài khoản ghi nhận"), self.lbl_collector)
+        right_form.addRow(self.build_field_label("Người nộp tiền"), self.txt_payer)
+        right_form.addRow(self.build_field_label("Ghi chú"), self.txt_note)
 
         form_row.addWidget(left_panel, 1)
         form_row.addWidget(right_panel, 1)
@@ -157,12 +157,12 @@ class ThanhToanForm(QWidget):
         note_layout.setContentsMargins(16, 16, 16, 16)
         note_layout.setSpacing(6)
 
-        note_badge = QLabel("Nghiep vu Admin")
+        note_badge = QLabel("Nghiệp vụ Admin")
         note_badge.setProperty("class", "infoPill")
 
         note_desc = QLabel(
-            "Cach dung: chon hoa don chua thanh toan, chon kenh thu, kiem tra nguoi nop tien, "
-            "roi bam ghi nhan. He thong se tao bien nhan va doi hoa don sang da thanh toan."
+            "Cách dùng: chọn hóa đơn chưa thanh toán, chọn kênh thu, kiểm tra người nộp tiền, "
+            "rồi bấm ghi nhận. Hệ thống sẽ tạo biên nhận và đổi hóa đơn sang đã thanh toán."
         )
         note_desc.setProperty("class", "sectionDesc")
         note_desc.setWordWrap(True)
@@ -173,25 +173,25 @@ class ThanhToanForm(QWidget):
         btns = QHBoxLayout()
         btns.setSpacing(10)
 
-        self.btn_confirm = QPushButton("Ghi nhan giao dich thu")
-        self.btn_refresh = QPushButton("Lam moi")
+        self.btn_confirm = QPushButton("Ghi nhận giao dịch thu")
+        self.btn_refresh = QPushButton("Làm mới")
         self.btn_refresh.setProperty("variant", "secondary")
 
         btns.addWidget(self.btn_confirm)
         btns.addWidget(self.btn_refresh)
         btns.addStretch()
 
-        table_title = QLabel("Lich su giao dich gan day")
+        table_title = QLabel("Lịch sử giao dịch gần đây")
         table_title.setProperty("class", "sectionTitle")
 
         self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["Bien nhan", "Hoa don", "So tien", "Kenh thu", "Nguoi nop", "Admin"])
+        self.table.setHorizontalHeaderLabels(["Biên nhận", "Hóa đơn", "Số tiền", "Kênh thu", "Người nộp", "Admin"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setMinimumHeight(240)
+        self.table.setMinimumHeight(300)
 
         self.btn_confirm.clicked.connect(self.confirm_payment)
         self.btn_refresh.clicked.connect(self.refresh_data)
@@ -200,7 +200,6 @@ class ThanhToanForm(QWidget):
         layout.addWidget(title)
         layout.addWidget(desc)
         layout.addLayout(form_row)
-        layout.addWidget(note_card)
         layout.addLayout(btns)
         layout.addSpacing(8)
         layout.addWidget(table_title)
@@ -240,7 +239,7 @@ class ThanhToanForm(QWidget):
     def update_receivable_info(self):
         data = self.cbo_bill.currentData() or {}
         self.lbl_amount.setText(data.get("amount", "0 VND"))
-        self.lbl_status.setText(data.get("status", "Khong co hoa don can thu"))
+        self.lbl_status.setText(data.get("status", "Không có hóa đơn cần thu"))
         self.lbl_collector.setText(data.get("collector", "Admin"))
         self.txt_payer.setText(data.get("payer_name", ""))
 
@@ -276,7 +275,7 @@ class ThanhToanForm(QWidget):
             self.cbo_bill.setEnabled(True)
             self.btn_confirm.setEnabled(True)
         else:
-            self.cbo_bill.addItem("Khong co hoa don chua thanh toan", None)
+            self.cbo_bill.addItem("Không có hóa đơn chưa thanh toán", None)
             self.cbo_bill.setEnabled(False)
             self.btn_confirm.setEnabled(False)
         self.cbo_bill.blockSignals(False)
@@ -305,7 +304,7 @@ class ThanhToanForm(QWidget):
     def confirm_payment(self):
         data = self.cbo_bill.currentData()
         if not data:
-            show_warning(self, "Thieu du lieu", "Khong co hoa don can thu.")
+            show_warning(self, "Thiếu dữ liệu", "Không có hóa đơn cần thu.")
             return
         try:
             payment = self.context.payment_service.create_payment(
@@ -314,7 +313,7 @@ class ThanhToanForm(QWidget):
                     invoice_code=data["invoice_code"],
                     paid_amount=data["raw_amount"],
                     payment_method=self.cbo_method.currentText(),
-                    payer_name=self.txt_payer.text().strip() or "Khach hang",
+                    payer_name=self.txt_payer.text().strip() or "Khách hàng",
                     collected_by_user_id=self.current_user_id or 1,
                     note=self.txt_note.text().strip(),
                 )
@@ -324,10 +323,10 @@ class ThanhToanForm(QWidget):
                 "CREATE",
                 "payments",
                 payment.receipt_code,
-                "Ghi nhan giao dich thu va cap nhat hoa don.",
+                "Ghi nhận giao dịch thu và cập nhật hóa đơn.",
             )
             self.txt_note.clear()
             self.refresh_data()
-            show_info(self, "Da ghi nhan", f"Da tao bien nhan {payment.receipt_code}.")
+            show_info(self, "Đã ghi nhận", f"Đã tạo biên nhận {payment.receipt_code}.")
         except Exception as exc:
-            show_warning(self, "Khong the ghi nhan thu", str(exc))
+            show_warning(self, "Không thể ghi nhận thu", str(exc))

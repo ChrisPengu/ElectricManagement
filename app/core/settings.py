@@ -38,6 +38,8 @@ class DatabaseSettings:
     sqlserver_password: str
     sqlserver_driver: str
     sqlserver_trusted_connection: bool
+    sqlserver_encrypt: bool
+    sqlserver_trust_server_certificate: bool
 
     @classmethod
     def from_env(cls) -> "DatabaseSettings":
@@ -48,6 +50,8 @@ class DatabaseSettings:
         data_dir.mkdir(parents=True, exist_ok=True)
 
         trusted_raw = os.getenv("DB_SQLSERVER_TRUSTED_CONNECTION", "0").strip().lower()
+        encrypt_raw = os.getenv("DB_SQLSERVER_ENCRYPT", "0").strip().lower()
+        trust_cert_raw = os.getenv("DB_SQLSERVER_TRUST_SERVER_CERTIFICATE", "1").strip().lower()
 
         return cls(
             backend=os.getenv("DB_BACKEND", "sqlite").strip().lower(),
@@ -62,4 +66,6 @@ class DatabaseSettings:
             sqlserver_password=os.getenv("DB_SQLSERVER_PASSWORD", "").strip(),
             sqlserver_driver=os.getenv("DB_SQLSERVER_DRIVER", "ODBC Driver 17 for SQL Server").strip(),
             sqlserver_trusted_connection=trusted_raw in {"1", "true", "yes"},
+            sqlserver_encrypt=encrypt_raw in {"1", "true", "yes"},
+            sqlserver_trust_server_certificate=trust_cert_raw in {"1", "true", "yes"},
         )

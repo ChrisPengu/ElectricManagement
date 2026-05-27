@@ -1,5 +1,5 @@
 from app.dto.mappers import to_meter_reading_dto
-from app.dto.requests import MeterReadingCreateDTO
+from app.dto.requests import MeterReadingCreateDTO, MeterReadingUpdateDTO
 from app.dto.responses import MeterReadingDTO
 from app.models import MeterReading
 from app.repositories.customer_repository import CustomerRepository
@@ -50,3 +50,42 @@ class MeterReadingService:
             note=request.note.strip(),
         )
         return to_meter_reading_dto(self.meter_reading_repository.create(reading, recorded_by_user_id))
+
+    def update_reading(self, request: MeterReadingUpdateDTO, updated_by_user_id: int | None = None) -> MeterReadingDTO:
+        customer_code = request.customer_code.strip()
+        reading_period = request.reading_period.strip()
+
+        if self.customer_repository.get_by_code(customer_code) is None:
+            raise ValueError("Khong tim thay ho dung dien.")
+        if not reading_period:
+            raise ValueError("Vui long chon ky ghi so.")
+        if request.new_index < 0:
+            raise ValueError("Chi so cong to khong duoc am.")
+
+        current = self.meter_reading_repository.get_for_customer_period(customer_code, reading_period)
+        if current is None:
+            raise ValueError("Khong tim thay chi so cong to can sua.")
+
+        previous = self.meter_reading_repository.get_previous_month_for_customer_period(customer_code, reading_period)
+        if previous is not None and request.new_index < previous.new_index:
+            raise ValueError(
+                f"Chi so cong to ky {reading_period} khong duoc nho hon chi so thang truoc "
+                f"({previous.reading_period}: {previous.new_index})."
+            )
+
+        next_reading = self.meter_reading_repository.get_next_month_for_customer_period(customer_code, reading_period)
+        if next_reading is not None and request.new_index > next_reading.new_index:
+            raise ValueError(
+                f"Chi so cong to ky {reading_period} khong duoc lon hon chi so thang sau "
+                f"({next_reading.reading_period}: {next_reading.new_index})."
+            )
+
+        reading = MeterReading(
+            id=current.id,
+            customer_code=customer_code,
+            reading_period=reading_period,
+            new_index=request.new_index,
+            note=request.note.strip(),
+            created_at=current.created_at,
+        )
+        return to_meter_reading_dto(self.meter_reading_repository.update(reading, updated_by_user_id))

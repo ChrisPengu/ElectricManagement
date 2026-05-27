@@ -62,6 +62,7 @@ class InvoiceService:
             vat_percent=tariff.vat_percent,
             base_rate=tariff.base_rate,
             peak_multiplier=tariff.peak_multiplier if customer.contract_type == ContractType.FACTORY else 1.0,
+            price_tiers=tariff.price_tiers,
         )
         subtotal_without_vat = int(amount / (1 + tariff.vat_percent / 100)) if tariff.vat_percent else amount
         vat_amount = amount - subtotal_without_vat

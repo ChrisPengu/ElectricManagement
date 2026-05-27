@@ -17,6 +17,8 @@ from PyQt5.QtWidgets import (
     QStackedWidget,
     QFrame,
     QMessageBox,
+    QScrollArea,
+    QSizePolicy,
 )
 
 from ui.hodan import HoDanForm
@@ -37,6 +39,7 @@ class MainWindow(QWidget):
         self.role = "Admin"
         self.menu_buttons = []
         self.page_meta = []
+        self.page_scrolls = {}
         self.build_ui()
 
     def build_ui(self):
@@ -204,6 +207,57 @@ class MainWindow(QWidget):
                 border-radius: 24px;
                 border: 1px solid #d8e5f2;
             }
+
+            QScrollArea#pageScroll {
+                background: transparent;
+                border: none;
+            }
+
+            QScrollArea#pageScroll > QWidget > QWidget {
+                background: transparent;
+            }
+
+            QScrollBar:vertical {
+                background: #eef4fb;
+                width: 10px;
+                margin: 4px 0 4px 0;
+                border-radius: 5px;
+            }
+
+            QScrollBar::handle:vertical {
+                background: #b9cbe0;
+                min-height: 42px;
+                border-radius: 5px;
+            }
+
+            QScrollBar::handle:vertical:hover {
+                background: #8ba7c4;
+            }
+
+            QScrollBar:horizontal {
+                background: #eef4fb;
+                height: 10px;
+                margin: 0 4px 0 4px;
+                border-radius: 5px;
+            }
+
+            QScrollBar::handle:horizontal {
+                background: #b9cbe0;
+                min-width: 42px;
+                border-radius: 5px;
+            }
+
+            QScrollBar::handle:horizontal:hover {
+                background: #8ba7c4;
+            }
+
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical,
+            QScrollBar::add-line:horizontal,
+            QScrollBar::sub-line:horizontal {
+                width: 0;
+                height: 0;
+            }
         """
         )
 
@@ -253,6 +307,7 @@ class MainWindow(QWidget):
         sidebar_layout.addSpacing(6)
 
         self.stack = QStackedWidget()
+        self.stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.hodan = HoDanForm(self.context)
         self.congto = CongToForm(self.context)
         self.hoadon = HoaDonForm(self.context)
@@ -300,7 +355,9 @@ class MainWindow(QWidget):
         ]
 
         for meta in self.page_meta:
-            self.stack.addWidget(meta["widget"])
+            scroll_area = self.build_page_scroll(meta["widget"])
+            self.page_scrolls[meta["widget"]] = scroll_area
+            self.stack.addWidget(scroll_area)
             button = QPushButton(meta["title"])
             button.setCursor(Qt.PointingHandCursor)
             button.setProperty("class", "menuButton")
@@ -379,6 +436,7 @@ class MainWindow(QWidget):
         content_card.setObjectName("contentCard")
         content_card_layout = QVBoxLayout(content_card)
         content_card_layout.setContentsMargins(14, 14, 14, 14)
+        content_card_layout.setSpacing(0)
         content_card_layout.addWidget(self.stack)
 
         right_layout.addWidget(self.header_eyebrow)
@@ -391,6 +449,20 @@ class MainWindow(QWidget):
 
         first_meta = self.page_meta[0]
         self.switch_page(first_meta["widget"], first_meta["title"], first_meta["subtitle"], self.menu_buttons[0])
+
+    def build_page_scroll(self, page):
+        page.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        page.setMinimumWidth(1280)
+        scroll_area = QScrollArea()
+        scroll_area.setObjectName("pageScroll")
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setMinimumSize(0, 0)
+        scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setWidget(page)
+        return scroll_area
 
     def build_stat_card(self, label_text, value_text):
         card = QFrame()
@@ -412,7 +484,10 @@ class MainWindow(QWidget):
         return card
 
     def switch_page(self, widget, title, subtitle, active_button):
-        self.stack.setCurrentWidget(widget)
+        scroll_area = self.page_scrolls.get(widget)
+        self.stack.setCurrentWidget(scroll_area or widget)
+        if scroll_area:
+            scroll_area.verticalScrollBar().setValue(0)
         self.header_title.setText(title)
         self.header_sub.setText(subtitle)
         if hasattr(widget, "refresh_data"):
