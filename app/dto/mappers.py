@@ -100,6 +100,10 @@ def to_invoice_dto(invoice: Invoice) -> InvoiceDTO:
         billing_period=invoice.billing_period,
         amount=invoice.amount,
         status=invoice.status.value,
+        consumption_kwh=invoice.consumption_kwh,
+        fixed_fee=invoice.fixed_fee,
+        vat_amount=invoice.vat_amount,
+        issued_at=invoice.issued_at.isoformat(sep=" ", timespec="seconds") if invoice.issued_at else "",
     )
 
 

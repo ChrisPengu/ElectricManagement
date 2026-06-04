@@ -1,4 +1,9 @@
+from datetime import datetime
+from html import escape
+
 from PyQt5.QtCore import Qt, QDate
+from PyQt5.QtGui import QTextDocument
+from PyQt5.QtPrintSupport import QPrinter
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -12,14 +17,17 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QComboBox,
     QDateEdit,
+    QDialog,
+    QTextBrowser,
 )
 
+from app.models import ContractType, InvoiceStatus
 from ui.dialogs import show_info, show_warning
 from ui.common_styles import PAGE_STYLE
 
 
-PAID_STATUS = "Đã thanh toán"
-UNPAID_STATUS = "Chưa thanh toán"
+PAID_STATUS = InvoiceStatus.PAID.value
+UNPAID_STATUS = InvoiceStatus.UNPAID.value
 
 
 class HoaDonForm(QWidget):
@@ -102,8 +110,10 @@ class HoaDonForm(QWidget):
         filter_row.addWidget(self.btn_export)
         filter_row.addWidget(self.btn_refresh)
 
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Ma HD", "Ma ho", "Ky hoa don", "So tien", "Trang thai"])
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(
+            ["Ma HD", "Ma ho", "Ky hoa don", "San luong", "Phi co dinh", "Tong tien", "Trang thai"]
+        )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
@@ -186,6 +196,8 @@ class HoaDonForm(QWidget):
                 invoice.invoice_code,
                 invoice.customer_code,
                 invoice.billing_period,
+                f"{invoice.consumption_kwh:,} kWh".replace(",", "."),
+                f"{invoice.fixed_fee:,} VND".replace(",", "."),
                 f"{invoice.amount:,} VND".replace(",", "."),
                 invoice.status,
             ]
@@ -233,19 +245,37 @@ class HoaDonForm(QWidget):
         if invoice is None:
             show_warning(self, "Khong tim thay", "Hoa don khong con ton tai trong database.")
             return
-        show_info(
-            self,
-            "Chi tiet hoa don",
-            "\n".join(
-                [
-                    f"Ma hoa don: {invoice.invoice_code}",
-                    f"Ma ho: {invoice.customer_code}",
-                    f"Ky: {invoice.billing_period}",
-                    f"So tien: {invoice.amount:,} VND".replace(",", "."),
-                    f"Trang thai: {invoice.status.value}",
-                ]
-            ),
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Chi tiet hoa don {invoice.invoice_code}")
+        dialog.resize(840, 700)
+        dialog.setStyleSheet(
+            PAGE_STYLE
+            + """
+            QTextBrowser {
+                background: #ffffff;
+                border: 1px solid #d8e4f2;
+                border-radius: 16px;
+                padding: 8px;
+            }
+            """
         )
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(12)
+
+        browser = QTextBrowser()
+        browser.setHtml(self.build_invoice_html(invoice))
+        layout.addWidget(browser, 1)
+
+        button_row = QHBoxLayout()
+        button_row.addStretch()
+        btn_close = QPushButton("Dong")
+        btn_close.clicked.connect(dialog.accept)
+        button_row.addWidget(btn_close)
+        layout.addLayout(button_row)
+
+        dialog.exec_()
 
     def export_selected_invoice(self):
         invoice_code = self.selected_invoice_code()
@@ -257,16 +287,361 @@ class HoaDonForm(QWidget):
             show_warning(self, "Khong tim thay", "Hoa don khong con ton tai trong database.")
             return
 
+        self.export_invoice(invoice)
+
+    def export_invoice(self, invoice):
         export_dir = self.context.database.db_path.parent
         export_dir.mkdir(parents=True, exist_ok=True)
-        path = export_dir / f"{invoice.invoice_code}.txt"
-        path.write_text(
-            "HOA DON TIEN DIEN\n"
-            f"Ma hoa don: {invoice.invoice_code}\n"
-            f"Ma ho: {invoice.customer_code}\n"
-            f"Ky: {invoice.billing_period}\n"
-            f"So tien: {invoice.amount:,} VND\n".replace(",", ".")
-            + f"Trang thai: {invoice.status.value}\n",
-            encoding="utf-8",
+        path = export_dir / f"{invoice.invoice_code}.pdf"
+        self.write_invoice_pdf(invoice, path)
+        show_info(self, "Da xuat file", f"Da xuat hoa don PDF: {path}")
+
+    def write_invoice_pdf(self, invoice, path):
+        printer = QPrinter(QPrinter.HighResolution)
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(str(path))
+        printer.setPageSize(QPrinter.A4)
+        printer.setPageMargins(12, 12, 12, 12, QPrinter.Millimeter)
+
+        document = QTextDocument()
+        document.setHtml(self.build_invoice_html(invoice, standalone=True))
+        document.print_(printer)
+
+    def build_invoice_html(self, invoice, standalone=False):
+        customer = self.context.customer_repository.get_by_code(invoice.customer_code) if self.context else None
+        tariff = (
+            self.context.tariff_repository.get_by_contract_type(customer.contract_type)
+            if self.context and customer
+            else None
         )
-        show_info(self, "Da xuat file", f"Da xuat hoa don: {path}")
+
+        subtotal = max(invoice.amount - invoice.vat_amount, 0)
+        if subtotal == 0 and tariff and tariff.vat_percent:
+            subtotal = int(invoice.amount / (1 + tariff.vat_percent / 100))
+        vat_amount = invoice.vat_amount or max(invoice.amount - subtotal, 0)
+        fixed_fee = invoice.fixed_fee
+        energy_cost = max(subtotal - fixed_fee, 0)
+        vat_percent = tariff.vat_percent if tariff else (vat_amount * 100 / subtotal if subtotal else 0)
+        contract_type = customer.contract_type.value if customer else "Chua xac dinh"
+        owner_name = customer.owner_name if customer else "Chua cap nhat"
+        address = customer.address if customer else "Chua cap nhat"
+        phone_number = customer.phone_number if customer else "Chua cap nhat"
+        issued_at = self.format_datetime(invoice.issued_at) or datetime.now().strftime("%d/%m/%Y %H:%M")
+        status_class = "paid" if invoice.status == InvoiceStatus.PAID else "unpaid"
+
+        breakdown_rows = self.build_breakdown_rows(invoice, customer, tariff, energy_cost)
+        breakdown_html = "".join(
+            "<tr>"
+            f"<td>{escape(row['label'])}</td>"
+            f"<td class='right'>{escape(row['quantity'])}</td>"
+            f"<td class='right'>{escape(row['rate'])}</td>"
+            f"<td class='right strong'>{escape(row['amount'])}</td>"
+            "</tr>"
+            for row in breakdown_rows
+        )
+
+        styles = """
+        <style>
+            body {
+                margin: 0;
+                background: #eef4fb;
+                color: #15324d;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 13px;
+            }
+            .invoice {
+                max-width: 860px;
+                margin: 0 auto;
+                background: #ffffff;
+                border: 1px solid #d8e4f2;
+                border-radius: 18px;
+                overflow: hidden;
+            }
+            .topbar {
+                height: 8px;
+                background: #2f80ed;
+            }
+            .header {
+                display: flex;
+                justify-content: space-between;
+                gap: 24px;
+                padding: 26px 30px 18px;
+                border-bottom: 1px solid #e4edf7;
+            }
+            .eyebrow {
+                color: #4c75a1;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+            }
+            h1 {
+                margin: 6px 0;
+                color: #12385f;
+                font-size: 28px;
+                letter-spacing: 0;
+            }
+            .muted {
+                color: #6f849b;
+            }
+            .codebox {
+                min-width: 230px;
+                padding: 16px;
+                background: #f6fbff;
+                border: 1px solid #d8e7f5;
+                border-radius: 14px;
+                text-align: right;
+            }
+            .codebox strong {
+                display: block;
+                margin: 6px 0 10px;
+                color: #12385f;
+                font-size: 16px;
+            }
+            .status {
+                display: inline-block;
+                padding: 7px 10px;
+                border-radius: 999px;
+                font-weight: 700;
+            }
+            .paid {
+                color: #176c3a;
+                background: #e8f7ee;
+                border: 1px solid #bfe7cd;
+            }
+            .unpaid {
+                color: #9a5a10;
+                background: #fff4df;
+                border: 1px solid #f0d09c;
+            }
+            .section {
+                padding: 20px 30px;
+                border-bottom: 1px solid #eaf1f8;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px 20px;
+            }
+            .field {
+                padding: 12px 14px;
+                background: #f8fbfe;
+                border: 1px solid #e0ebf6;
+                border-radius: 12px;
+            }
+            .label {
+                display: block;
+                color: #6f849b;
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+            }
+            .value {
+                display: block;
+                margin-top: 4px;
+                color: #173c62;
+                font-weight: 700;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 12px;
+            }
+            th {
+                background: #eef5fb;
+                color: #163d66;
+                padding: 11px 10px;
+                text-align: left;
+                font-size: 12px;
+            }
+            td {
+                border-bottom: 1px solid #edf2f8;
+                padding: 11px 10px;
+            }
+            .right {
+                text-align: right;
+            }
+            .strong {
+                font-weight: 700;
+                color: #12385f;
+            }
+            .totals {
+                margin-left: auto;
+                max-width: 390px;
+            }
+            .total-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 9px 0;
+                border-bottom: 1px solid #edf2f8;
+            }
+            .grand {
+                margin-top: 8px;
+                padding: 14px 16px;
+                background: #143d68;
+                color: white;
+                border-radius: 14px;
+                font-size: 18px;
+                font-weight: 800;
+            }
+            .note {
+                padding: 16px 30px 26px;
+                color: #6f849b;
+                font-size: 12px;
+            }
+            @media print {
+                body { background: #ffffff; }
+                .invoice { border: none; border-radius: 0; }
+            }
+        </style>
+        """
+
+        body = f"""
+        <div class="invoice">
+            <div class="topbar"></div>
+            <div class="header">
+                <div>
+                    <div class="eyebrow">Ban quan ly dien khu dan cu</div>
+                    <h1>Hoa don tien dien</h1>
+                    <div class="muted">Ky hoa don {escape(invoice.billing_period)} - ngay lap {escape(issued_at)}</div>
+                </div>
+                <div class="codebox">
+                    <span class="label">Ma hoa don</span>
+                    <strong>{escape(invoice.invoice_code)}</strong>
+                    <span class="status {status_class}">{escape(invoice.status.value)}</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="grid">
+                    <div class="field"><span class="label">Ma khach hang</span><span class="value">{escape(invoice.customer_code)}</span></div>
+                    <div class="field"><span class="label">Ten chu ho / don vi</span><span class="value">{escape(owner_name)}</span></div>
+                    <div class="field"><span class="label">Dia chi su dung dien</span><span class="value">{escape(address)}</span></div>
+                    <div class="field"><span class="label">Dien thoai</span><span class="value">{escape(phone_number)}</span></div>
+                    <div class="field"><span class="label">Loai hop dong</span><span class="value">{escape(contract_type)}</span></div>
+                    <div class="field"><span class="label">San luong tieu thu</span><span class="value">{escape(self.format_kwh(invoice.consumption_kwh))}</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="eyebrow">Bang tinh tien dien</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Noi dung</th>
+                            <th class="right">San luong</th>
+                            <th class="right">Don gia</th>
+                            <th class="right">Thanh tien</th>
+                        </tr>
+                    </thead>
+                    <tbody>{breakdown_html}</tbody>
+                </table>
+            </div>
+
+            <div class="section">
+                <div class="totals">
+                    <div class="total-row"><span>Tien dien truoc phi</span><strong>{escape(self.format_money(energy_cost))}</strong></div>
+                    <div class="total-row"><span>Phi co dinh</span><strong>{escape(self.format_money(fixed_fee))}</strong></div>
+                    <div class="total-row"><span>VAT ({vat_percent:.1f}%)</span><strong>{escape(self.format_money(vat_amount))}</strong></div>
+                    <div class="grand">
+                        <span>Tong thanh toan</span>
+                        <span style="float:right">{escape(self.format_money(invoice.amount))}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="note">
+                Vui long thanh toan dung han theo ky hoa don. Hoa don duoc tao tu chi so cong to va cau hinh bieu gia dang ap dung trong he thong.
+            </div>
+        </div>
+        """
+
+        if not standalone:
+            return styles + body
+        return f"<!doctype html><html><head><meta charset='utf-8'><title>{escape(invoice.invoice_code)}</title>{styles}</head><body>{body}</body></html>"
+
+    def build_breakdown_rows(self, invoice, customer, tariff, fallback_energy_cost):
+        if not tariff or not customer:
+            return [
+                {
+                    "label": "Dien nang tieu thu",
+                    "quantity": self.format_kwh(invoice.consumption_kwh),
+                    "rate": "Theo du lieu hoa don",
+                    "amount": self.format_money(fallback_energy_cost),
+                }
+            ]
+
+        if customer.contract_type == ContractType.HOUSEHOLD:
+            return self.build_household_breakdown(invoice.consumption_kwh, tariff.price_tiers, fallback_energy_cost)
+
+        effective_rate = int(tariff.base_rate * tariff.peak_multiplier)
+        amount = fallback_energy_cost or int(invoice.consumption_kwh * effective_rate)
+        return [
+            {
+                "label": f"San xuat: {self.format_money(tariff.base_rate)}/kWh x he so {tariff.peak_multiplier:.2f}",
+                "quantity": self.format_kwh(invoice.consumption_kwh),
+                "rate": f"{self.format_money(effective_rate)}/kWh",
+                "amount": self.format_money(amount or fallback_energy_cost),
+            }
+        ]
+
+    def build_household_breakdown(self, consumption_kwh, price_tiers, expected_energy_cost=0):
+        rows = []
+        calculated_total = 0
+        for tier in price_tiers or []:
+            lower_bound = max(int(tier.get("from_kwh", 0)), 1)
+            if consumption_kwh < lower_bound:
+                continue
+            to_kwh = tier.get("to_kwh")
+            upper_bound = consumption_kwh if to_kwh is None else min(consumption_kwh, int(to_kwh))
+            units = max(0, upper_bound - lower_bound + 1)
+            if units <= 0:
+                continue
+            rate = int(tier.get("rate", 0))
+            if to_kwh is None:
+                tier_label = f"Bac {lower_bound} kWh tro len"
+            else:
+                tier_label = f"Bac {lower_bound}-{int(to_kwh)} kWh"
+            amount = units * rate
+            calculated_total += amount
+            rows.append(
+                {
+                    "label": tier_label,
+                    "quantity": self.format_kwh(units),
+                    "rate": f"{self.format_money(rate)}/kWh",
+                    "amount": self.format_money(amount),
+                }
+            )
+        adjustment = int(expected_energy_cost or 0) - calculated_total
+        if rows and adjustment:
+            rows.append(
+                {
+                    "label": "Dieu chinh theo tong hoa don da luu",
+                    "quantity": "",
+                    "rate": "",
+                    "amount": self.format_money(adjustment),
+                }
+            )
+        if rows:
+            return rows
+        return [
+            {
+                "label": "Dien nang sinh hoat",
+                "quantity": self.format_kwh(consumption_kwh),
+                "rate": "Theo bieu gia",
+                "amount": self.format_money(0),
+            }
+        ]
+
+    def format_money(self, amount):
+        return f"{int(amount or 0):,} VND".replace(",", ".")
+
+    def format_kwh(self, value):
+        return f"{int(value or 0):,} kWh".replace(",", ".")
+
+    def format_datetime(self, value):
+        if not value:
+            return ""
+        if isinstance(value, datetime):
+            return value.strftime("%d/%m/%Y %H:%M")
+        return str(value)

@@ -52,6 +52,10 @@ class InvoiceDTO:
     billing_period: str
     amount: int
     status: str
+    consumption_kwh: int = 0
+    fixed_fee: int = 0
+    vat_amount: int = 0
+    issued_at: str = ""
 
 
 @dataclass(slots=True)

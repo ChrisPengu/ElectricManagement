@@ -11,9 +11,10 @@ class InvoiceRepository:
             rows = self.db.mongo_collection("invoices").find({}, sort=[("id", -1)])
             return [self._to_model(row) for row in rows]
 
+        columns = self._select_columns()
         rows = self.db.fetch_all(
-            """
-            SELECT id, invoice_code, customer_code, billing_period, amount, status
+            f"""
+            SELECT {columns}
             FROM invoices
             ORDER BY id DESC
             """
@@ -28,9 +29,10 @@ class InvoiceRepository:
             )
             return [self._to_model(row) for row in rows]
 
+        columns = self._select_columns()
         rows = self.db.fetch_all(
-            """
-            SELECT id, invoice_code, customer_code, billing_period, amount, status
+            f"""
+            SELECT {columns}
             FROM invoices
             WHERE status <> ?
             ORDER BY id DESC
@@ -44,9 +46,10 @@ class InvoiceRepository:
             row = self.db.mongo_collection("invoices").find_one({"invoice_code": invoice_code})
             return self._to_model(row) if row else None
 
+        columns = self._select_columns()
         row = self.db.fetch_one(
-            """
-            SELECT id, invoice_code, customer_code, billing_period, amount, status
+            f"""
+            SELECT {columns}
             FROM invoices
             WHERE invoice_code = ?
             """,
@@ -158,4 +161,38 @@ class InvoiceRepository:
             billing_period=row["billing_period"],
             amount=row["amount"],
             status=InvoiceStatus(row["status"]),
+            consumption_kwh=int(row.get("consumption_kwh") or 0),
+            fixed_fee=int(row.get("fixed_fee") or 0),
+            vat_amount=int(row.get("vat_amount") or 0),
+            issued_by_user_id=row.get("issued_by_user_id"),
+            issued_at=self._parse_datetime(row.get("issued_at")),
         )
+
+    def _select_columns(self) -> str:
+        columns = ["id", "invoice_code", "customer_code", "billing_period"]
+        detail_defaults = {
+            "consumption_kwh": "0",
+            "fixed_fee": "0",
+            "vat_amount": "0",
+            "issued_by_user_id": "NULL",
+            "issued_at": "NULL",
+        }
+        for column_name, default_value in detail_defaults.items():
+            if self.db.has_column("invoices", column_name):
+                columns.append(column_name)
+            else:
+                columns.append(f"{default_value} AS {column_name}")
+        columns.extend(["amount", "status"])
+        return ", ".join(columns)
+
+    def _parse_datetime(self, value):
+        if not value:
+            return None
+        if hasattr(value, "isoformat"):
+            return value
+        try:
+            from datetime import datetime
+
+            return datetime.fromisoformat(str(value))
+        except ValueError:
+            return None

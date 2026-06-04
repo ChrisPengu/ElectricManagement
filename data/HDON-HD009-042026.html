@@ -1,0 +1,213 @@
+<!doctype html><html><head><meta charset='utf-8'><title>HDON-HD009-042026</title>
+        <style>
+            body {
+                margin: 0;
+                background: #eef4fb;
+                color: #15324d;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 13px;
+            }
+            .invoice {
+                max-width: 860px;
+                margin: 0 auto;
+                background: #ffffff;
+                border: 1px solid #d8e4f2;
+                border-radius: 18px;
+                overflow: hidden;
+            }
+            .topbar {
+                height: 8px;
+                background: #2f80ed;
+            }
+            .header {
+                display: flex;
+                justify-content: space-between;
+                gap: 24px;
+                padding: 26px 30px 18px;
+                border-bottom: 1px solid #e4edf7;
+            }
+            .eyebrow {
+                color: #4c75a1;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+            }
+            h1 {
+                margin: 6px 0;
+                color: #12385f;
+                font-size: 28px;
+                letter-spacing: 0;
+            }
+            .muted {
+                color: #6f849b;
+            }
+            .codebox {
+                min-width: 230px;
+                padding: 16px;
+                background: #f6fbff;
+                border: 1px solid #d8e7f5;
+                border-radius: 14px;
+                text-align: right;
+            }
+            .codebox strong {
+                display: block;
+                margin: 6px 0 10px;
+                color: #12385f;
+                font-size: 16px;
+            }
+            .status {
+                display: inline-block;
+                padding: 7px 10px;
+                border-radius: 999px;
+                font-weight: 700;
+            }
+            .paid {
+                color: #176c3a;
+                background: #e8f7ee;
+                border: 1px solid #bfe7cd;
+            }
+            .unpaid {
+                color: #9a5a10;
+                background: #fff4df;
+                border: 1px solid #f0d09c;
+            }
+            .section {
+                padding: 20px 30px;
+                border-bottom: 1px solid #eaf1f8;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px 20px;
+            }
+            .field {
+                padding: 12px 14px;
+                background: #f8fbfe;
+                border: 1px solid #e0ebf6;
+                border-radius: 12px;
+            }
+            .label {
+                display: block;
+                color: #6f849b;
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+            }
+            .value {
+                display: block;
+                margin-top: 4px;
+                color: #173c62;
+                font-weight: 700;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 12px;
+            }
+            th {
+                background: #eef5fb;
+                color: #163d66;
+                padding: 11px 10px;
+                text-align: left;
+                font-size: 12px;
+            }
+            td {
+                border-bottom: 1px solid #edf2f8;
+                padding: 11px 10px;
+            }
+            .right {
+                text-align: right;
+            }
+            .strong {
+                font-weight: 700;
+                color: #12385f;
+            }
+            .totals {
+                margin-left: auto;
+                max-width: 390px;
+            }
+            .total-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 9px 0;
+                border-bottom: 1px solid #edf2f8;
+            }
+            .grand {
+                margin-top: 8px;
+                padding: 14px 16px;
+                background: #143d68;
+                color: white;
+                border-radius: 14px;
+                font-size: 18px;
+                font-weight: 800;
+            }
+            .note {
+                padding: 16px 30px 26px;
+                color: #6f849b;
+                font-size: 12px;
+            }
+            @media print {
+                body { background: #ffffff; }
+                .invoice { border: none; border-radius: 0; }
+            }
+        </style>
+        </head><body>
+        <div class="invoice">
+            <div class="topbar"></div>
+            <div class="header">
+                <div>
+                    <div class="eyebrow">Ban quan ly dien khu dan cu</div>
+                    <h1>Hoa don tien dien</h1>
+                    <div class="muted">Ky hoa don 04/2026 - ngay lap 07/05/2026 08:35</div>
+                </div>
+                <div class="codebox">
+                    <span class="label">Ma hoa don</span>
+                    <strong>HDON-HD009-042026</strong>
+                    <span class="status unpaid">Chưa thanh toán</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="grid">
+                    <div class="field"><span class="label">Ma khach hang</span><span class="value">HD009</span></div>
+                    <div class="field"><span class="label">Ten chu ho / don vi</span><span class="value">Xưởng Gỗ Gia Hưng</span></div>
+                    <div class="field"><span class="label">Dia chi su dung dien</span><span class="value">Khu B - Cụm CN 3</span></div>
+                    <div class="field"><span class="label">Dien thoai</span><span class="value">0909999999</span></div>
+                    <div class="field"><span class="label">Loai hop dong</span><span class="value">Nhà máy</span></div>
+                    <div class="field"><span class="label">San luong tieu thu</span><span class="value">1.710 kWh</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="eyebrow">Bang tinh tien dien</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Noi dung</th>
+                            <th class="right">San luong</th>
+                            <th class="right">Don gia</th>
+                            <th class="right">Thanh tien</th>
+                        </tr>
+                    </thead>
+                    <tbody><tr><td>San xuat: 2.450 VND/kWh x he so 1.35</td><td class='right'>1.710 kWh</td><td class='right'>3.307 VND/kWh</td><td class='right strong'>5.739.750 VND</td></tr></tbody>
+                </table>
+            </div>
+
+            <div class="section">
+                <div class="totals">
+                    <div class="total-row"><span>Tien dien truoc phi</span><strong>5.739.750 VND</strong></div>
+                    <div class="total-row"><span>Phi co dinh</span><strong>150.000 VND</strong></div>
+                    <div class="total-row"><span>VAT (8.0%)</span><strong>471.180 VND</strong></div>
+                    <div class="grand">
+                        <span>Tong thanh toan</span>
+                        <span style="float:right">6.360.930 VND</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="note">
+                Vui long thanh toan dung han theo ky hoa don. Hoa don duoc tao tu chi so cong to va cau hinh bieu gia dang ap dung trong he thong.
+            </div>
+        </div>
+        </body></html>

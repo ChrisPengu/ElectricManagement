@@ -172,19 +172,27 @@ class TariffForm(QWidget):
         formula_layout.setContentsMargins(22, 20, 22, 20)
         formula_layout.setSpacing(12)
 
-        formula_title = QLabel("Xem trước công thức")
+        formula_title = QLabel("Công thức và ghi chú áp dụng")
         formula_title.setProperty("class", "sectionTitle")
 
-        formula_desc = QLabel("Công thức thay đổi theo loại hợp đồng và tham số đang chọn.")
+        formula_desc = QLabel(
+            "Preview tự cập nhật theo tham số đang chọn; ô ghi chú bên dưới được lưu riêng cho từng loại hợp đồng."
+        )
         formula_desc.setProperty("class", "sectionDesc")
         formula_desc.setWordWrap(True)
 
+        self.lbl_formula_preview = QLabel()
+        self.lbl_formula_preview.setProperty("class", "valueBox")
+        self.lbl_formula_preview.setWordWrap(True)
+
         self.txt_formula = QPlainTextEdit()
-        self.txt_formula.setReadOnly(True)
-        self.txt_formula.setMinimumHeight(150)
+        self.txt_formula.setReadOnly(False)
+        self.txt_formula.setPlaceholderText("Ghi chú công thức lưu kèm cấu hình biểu giá")
+        self.txt_formula.setMinimumHeight(120)
 
         formula_layout.addWidget(formula_title)
         formula_layout.addWidget(formula_desc)
+        formula_layout.addWidget(self.lbl_formula_preview)
         formula_layout.addWidget(self.txt_formula)
 
         table_card = QFrame()
@@ -247,6 +255,18 @@ class TariffForm(QWidget):
     def is_household_contract(self):
         return self.current_contract_type() == ContractType.HOUSEHOLD
 
+    def default_formula_note(self, contract_type=None):
+        contract_type = contract_type or self.current_contract_type()
+        if contract_type == ContractType.HOUSEHOLD:
+            return (
+                "Tiền điện hộ gia đình = Phí cố định + Tổng(kWh từng bậc x đơn giá bậc) + VAT. "
+                "Các bậc giá có thể chỉnh trực tiếp trong bảng khung giá."
+            )
+        return (
+            "Tiền điện nhà máy = Phí cố định + (kWh x đơn giá cơ sở x hệ số giờ cao điểm) + VAT. "
+            "Điều chỉnh đơn giá cơ sở và hệ số cao điểm để áp dụng cho nhóm sản xuất."
+        )
+
     def refresh_contract_view(self, *_, sync_table=True):
         if self._loading_config:
             return
@@ -266,7 +286,7 @@ class TariffForm(QWidget):
             self.lbl_table_desc.setText(
                 "Nhập số nguyên cho các cột. Để trống cột Đến kWh ở bậc cuối để áp dụng cho phần vượt mức."
             )
-            self.txt_formula.setPlainText(
+            self.lbl_formula_preview.setText(
                 "Tiền điện hộ gia đình = Phí cố định + Tổng(kWh từng bậc x đơn giá bậc) + VAT\n\n"
                 f"Phí cố định hiện tại: {fixed_fee:,} VND/kỳ\n"
                 f"VAT hiện tại: {vat:.1f}%\n"
@@ -280,7 +300,7 @@ class TariffForm(QWidget):
                 "Áp dụng đơn giá cơ sở và hệ số giờ cao điểm cho nhóm sản xuất, nhà máy hoặc đơn vị tiêu thụ lớn."
             )
             self.lbl_table_desc.setText("Bảng bên dưới là giá trị xem trước theo đơn giá cơ sở và hệ số đang chọn.")
-            self.txt_formula.setPlainText(
+            self.lbl_formula_preview.setText(
                 "Tiền điện nhà máy = Phí cố định + (kWh x đơn giá cơ sở x hệ số giờ cao điểm) + VAT\n\n"
                 f"Phí cố định hiện tại: {fixed_fee:,} VND/kỳ\n"
                 f"VAT hiện tại: {vat:.1f}%\n"
@@ -435,8 +455,9 @@ class TariffForm(QWidget):
         self.price_tiers = default_household_price_tiers()
         self.refresh_contract_view(sync_table=False)
 
-    def load_contract_config(self):
+    def load_contract_config(self, *_):
         if not self.context:
+            self.txt_formula.setPlainText(self.default_formula_note())
             self.refresh_contract_view(sync_table=False)
             return
 
@@ -454,9 +475,13 @@ class TariffForm(QWidget):
             self.spin_factory_rate.setValue(config.base_rate)
             if contract_type == ContractType.HOUSEHOLD:
                 self.price_tiers = config.price_tiers or default_household_price_tiers()
+            self.txt_formula.setPlainText(config.formula_note or self.default_formula_note(contract_type))
             self._loading_config = False
         elif contract_type == ContractType.HOUSEHOLD:
             self.price_tiers = default_household_price_tiers()
+            self.txt_formula.setPlainText(self.default_formula_note(contract_type))
+        else:
+            self.txt_formula.setPlainText(self.default_formula_note(contract_type))
 
         self.refresh_contract_view(sync_table=False)
 

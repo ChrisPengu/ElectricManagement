@@ -6,9 +6,10 @@
 
 - Quản lý hộ dân hoặc đơn vị sử dụng điện.
 - Ghi nhận và sửa chỉ số công tơ theo kỳ.
-- Lập hóa đơn tiền điện từ chỉ số công tơ và biểu giá đang cấu hình.
+- Lập hóa đơn tiền điện từ chỉ số công tơ và biểu giá đang cấu hình, có xem chi tiết từng thành phần tính tiền.
 - Ghi nhận thanh toán, tạo biên nhận và cập nhật công nợ.
-- Cấu hình biểu giá điện, gồm phí cố định, VAT, giá nhà máy và bậc giá hộ gia đình.
+- Cấu hình biểu giá điện cho cả hộ gia đình và nhà máy, gồm phí cố định, VAT, công thức/ghi chú áp dụng, đơn giá nhà máy, hệ số cao điểm và bậc giá hộ gia đình.
+- Xuất hóa đơn dạng PDF để lưu trữ hoặc in ấn.
 - Thống kê doanh thu, sản lượng tiêu thụ và top hộ dân dùng điện cao nhất.
 - Theo dõi sự cố điện và nhật ký thao tác Admin.
 
@@ -32,7 +33,7 @@ ElectricManagement/
 │   ├── repositories/      # truy cập MongoDB/SQL Server/SQLite
 │   └── services/          # xử lý nghiệp vụ
 ├── ui/                    # giao diện PyQt5
-└── data/                  # file xuất báo cáo/hóa đơn, SQLite local
+└── data/                  # file xuất báo cáo/hóa đơn PDF, SQLite local
 ```
 
 ## Cách Chạy
@@ -181,7 +182,31 @@ Màn hình `Biểu giá & hợp đồng` cho phép cập nhật:
 
 - Phí cố định theo kỳ.
 - VAT.
-- Đơn giá và hệ số giờ cao điểm cho nhóm nhà máy.
-- Bậc giá hộ gia đình, lưu trong `tariff_configs.price_tiers`.
+- Công thức/ghi chú áp dụng riêng cho từng loại hợp đồng.
+- Hộ gia đình: tính tiền theo các bậc kWh, lưu trong `tariff_configs.price_tiers`.
+- Nhà máy: tính tiền theo đơn giá cơ sở, hệ số giờ cao điểm và sản lượng tiêu thụ.
+
+Công thức tổng quát:
+
+```text
+Hộ gia đình = Phí cố định + Tổng(kWh từng bậc x đơn giá bậc) + VAT
+Nhà máy     = Phí cố định + (kWh x đơn giá cơ sở x hệ số cao điểm) + VAT
+```
 
 Hóa đơn tạo sau thời điểm cập nhật sẽ dùng cấu hình mới. Hóa đơn đã lập không tự tính lại.
+
+## Hóa Đơn Và Xuất PDF
+
+Màn hình `Quản lý hóa đơn` hỗ trợ:
+
+- Tạo hóa đơn theo khách hàng và kỳ hóa đơn từ chỉ số công tơ đã ghi nhận.
+- Xem chi tiết hóa đơn với thông tin khách hàng, loại hợp đồng, sản lượng kWh, bảng tính tiền, phí cố định, VAT, tổng thanh toán và trạng thái.
+- Với hộ gia đình, chi tiết hóa đơn hiển thị breakdown theo từng bậc giá.
+- Với nhà máy, chi tiết hóa đơn hiển thị đơn giá cơ sở, hệ số cao điểm và đơn giá hiệu lực.
+- Xuất hóa đơn ra file PDF trong thư mục `data/` theo tên mã hóa đơn, ví dụ:
+
+```text
+data/HDON-HD001-052026-083841.pdf
+```
+
+File PDF được render từ mẫu hóa đơn trong app bằng PyQt5 `QPrinter`, không cần cài thêm thư viện xuất PDF riêng.
